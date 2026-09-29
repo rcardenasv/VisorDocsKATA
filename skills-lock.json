@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "401-frameworks-quarkus-core": {
+      "source": "jabrena/plinth",
+      "sourceType": "github",
+      "skillPath": "skills/401-frameworks-quarkus-core/SKILL.md",
+      "computedHash": "e6997c4adfc14e625404f49ae98c51a577b9f45957c57a7668b5141c3473d8c9"
+    },
+    "402-frameworks-quarkus-rest": {
+      "source": "jabrena/plinth",
+      "sourceType": "github",
+      "skillPath": "skills/402-frameworks-quarkus-rest/SKILL.md",
+      "computedHash": "afab1bdc2b14d4d3eec0df78078c600e50b1adf87a54d6394fa32aaea5671087"
+    },
+    "403-frameworks-quarkus-validation": {
+      "source": "jabrena/plinth",
+      "sourceType": "github",
+      "skillPath": "skills/403-frameworks-quarkus-validation/SKILL.md",
+      "computedHash": "3189d60651df06828ed251aadc7913d6ae9e788162d6eb761067b77f16297fa7"
+    },
+    "412-frameworks-quarkus-panache": {
+      "source": "jabrena/plinth",
+      "sourceType": "github",
+      "skillPath": "skills/412-frameworks-quarkus-panache/SKILL.md",
+      "computedHash": "422eb5e21377704bbe1cd83f5c531ec55863832775715a4b4501bbdccc7cd268"
+    },
+    "421-frameworks-quarkus-testing-unit-tests": {
+      "source": "jabrena/plinth",
+      "sourceType": "github",
+      "skillPath": "skills/421-frameworks-quarkus-testing-unit-tests/SKILL.md",
+      "computedHash": "9eae2a486fa26a035239c37dfcaf80b410b7ef113499b88fc0afc7ad6d7320b9"
+    },
+    "706-technologies-containers-docker": {
+      "source": "jabrena/plinth",
+      "sourceType": "github",
+      "skillPath": "skills/706-technologies-containers-docker/SKILL.md",
+      "computedHash": "9f63bca148d52f9e1e50106a45e98a21054aec8a6d4140bb41570b8a6746337c"
+    },
+    "angular-developer": {
+      "source": "angular/angular",
+      "sourceType": "github",
+      "skillPath": "skills/dev-skills/angular-developer/SKILL.md",
+      "computedHash": "cebee5c8c3477eb1c03452a318b9c452fa14e993d57924829cc7e0efa766658c"
+    },
+    "elasticsearch-index-design": {
+      "source": "elastic/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/elasticsearch/elasticsearch-index-design/SKILL.md",
+      "computedHash": "40f52c7a81f1785c3eb6b341259ae051baf52d9a0f0b1efb522de0b13c3bad8b"
+    },
+    "elasticsearch-onboarding": {
+      "source": "elastic/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/elasticsearch/elasticsearch-onboarding/SKILL.md",
+      "computedHash": "83615e29c79792ed3c6d82bd5f3ec22df197074c06cc7567d6c2060bddc41d43"
+    },
+    "elasticsearch-query-optimization": {
+      "source": "elastic/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/elasticsearch/elasticsearch-query-optimization/SKILL.md",
+      "computedHash": "a0a10d8ed9dec4debe983deeddb22b1c7e0ed6718ced5229cad2d58e92f7dff9"
+    }
+  }
+}
