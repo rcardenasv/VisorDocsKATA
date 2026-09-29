@@ -64,4 +64,9 @@ public class AppException extends RuntimeException {
         return new AppException("SEARCH_ERROR",
                 "Search query failed: " + detail, 500, cause);
     }
+
+    public static AppException internalError(String detail, Throwable cause) {
+        return new AppException("INTERNAL_SERVER_ERROR",
+                detail, 500, cause);
+    }
 }

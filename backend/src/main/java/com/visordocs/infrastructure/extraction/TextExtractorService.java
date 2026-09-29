@@ -62,10 +62,13 @@ public class TextExtractorService {
     private String extractMarkdown(Path filePath) {
         try {
             String markdown = Files.readString(filePath, StandardCharsets.UTF_8);
-            // Simple approach: strip common markdown syntax for indexing
-            // Simple approach: strip common markdown syntax for indexing
-            // The raw markdown is still valuable for search
-            return markdown;
+            // Strip common markdown syntax to improve search quality
+            return markdown
+                .replaceAll("(?m)^#+\\s*", "")           // Remove headers
+                .replaceAll("(?m)^\\s*[-*+]\\s+", "")   // Remove list bullets
+                .replaceAll("\\[(.*?)\\]\\(.*?\\)", "$1") // Keep link text, remove URLs
+                .replaceAll("`{1,3}.*?`{1,3}", "")       // Remove inline code/blocks
+                .replaceAll("(?m)^>\\s*", "");          // Remove blockquotes
         } catch (IOException e) {
             throw AppException.textExtractionError("Failed to read Markdown file", e);
         }

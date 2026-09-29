@@ -27,8 +27,8 @@ public class Document extends PanacheEntityBase {
     @Column(nullable = false)
     public String category;
 
-    @Column(name = "tags", columnDefinition = "text")
-    public String tags; // comma-separated for simplicity with PostgreSQL
+    @Column(name = "tags", columnDefinition = "text[]")
+    public String[] tags;
 
     @Column(nullable = false)
     public String version;

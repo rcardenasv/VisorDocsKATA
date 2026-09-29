@@ -58,9 +58,8 @@ public class DocumentProcessingJob {
             document.content = content;
             
             // Index in ES
-            String[] tags = (document.tags != null && !document.tags.isBlank()) ? document.tags.split(",") : new String[0];
             elasticsearchService.indexDocument(
-                    document.id, document.title, document.author, document.category, tags, document.version, content
+                    document.id, document.title, document.author, document.category, document.tags, document.version, content
             );
             
             // Update status

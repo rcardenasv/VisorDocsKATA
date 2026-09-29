@@ -1,10 +1,7 @@
 package com.visordocs.infrastructure.search;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.query_dsl.MultiMatchQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.IndexRequest;
-import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.search.HighlightField;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
@@ -20,7 +17,6 @@ import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Elasticsearch service for indexing and searching documents.
@@ -44,8 +40,7 @@ public class ElasticsearchService {
     void onStartup(@Observes StartupEvent event) {
         try {
             boolean exists = client.indices().exists(
-                    ExistsRequest.of(e -> e.index(indexName))
-            ).value();
+                    ExistsRequest.of(e -> e.index(indexName))).value();
 
             if (!exists) {
                 LOG.infof("Creating Elasticsearch index: %s", indexName);
@@ -58,9 +53,7 @@ public class ElasticsearchService {
                                 .properties("category", p -> p.keyword(k -> k))
                                 .properties("tags", p -> p.keyword(k -> k))
                                 .properties("version", p -> p.keyword(k -> k))
-                                .properties("content", p -> p.text(t -> t.analyzer("standard")))
-                        )
-                ));
+                                .properties("content", p -> p.text(t -> t.analyzer("standard"))))));
                 LOG.infof("Index '%s' created successfully", indexName);
             } else {
                 LOG.infof("Index '%s' already exists", indexName);
@@ -82,7 +75,7 @@ public class ElasticsearchService {
      * @param content    extracted text content
      */
     public void indexDocument(String documentId, String title, String author,
-                              String category, String[] tags, String version, String content) {
+            String category, String[] tags, String version, String content) {
         try {
             Map<String, Object> doc = new HashMap<>();
             doc.put("documentId", documentId);
@@ -96,8 +89,7 @@ public class ElasticsearchService {
             client.index(IndexRequest.of(i -> i
                     .index(indexName)
                     .id(documentId)
-                    .document(doc)
-            ));
+                    .document(doc)));
 
             LOG.infof("Document '%s' indexed successfully", documentId);
         } catch (IOException e) {
@@ -106,7 +98,8 @@ public class ElasticsearchService {
     }
 
     /**
-     * Performs a Full-Text Search with highlighting across title, author, content, and tags.
+     * Performs a Full-Text Search with highlighting across title, author, content,
+     * and tags.
      *
      * @param queryText search query
      * @param page      zero-based page number
@@ -115,34 +108,30 @@ public class ElasticsearchService {
      */
     public SearchResponse search(String queryText, int page, int pageSize) {
         try {
-            var searchRequest = SearchRequest.of(s -> s
+            var response = client.search(s -> s
                     .index(indexName)
                     .query(q -> q
-                            .multiMatch(MultiMatchQuery.of(mm -> mm
+                            .multiMatch(mm -> mm
                                     .query(queryText)
-                                    .fields("title^3", "author^2", "content", "tags")
-                            ))
-                    )
+                                    .fields("title^3", "author^2", "content", "tags")))
                     .highlight(h -> h
                             .preTags("<mark>")
                             .postTags("</mark>")
-                            .fields("title", HighlightField.of(hf -> hf.numberOfFragments(1)))
-                            .fields("content", HighlightField.of(hf -> hf
-                                    .fragmentSize(150)
-                                    .numberOfFragments(3)
-                            ))
-                    )
+                            .fields(List.of(
+                                    co.elastic.clients.util.NamedValue.of("title",
+                                            HighlightField.of(hf -> hf.numberOfFragments(1))),
+                                    co.elastic.clients.util.NamedValue.of("content",
+                                            HighlightField.of(hf -> hf.fragmentSize(150).numberOfFragments(3))))))
                     .from(page * pageSize)
-                    .size(pageSize)
-            );
-
-            var response = client.search(searchRequest, Map.class);
+                    .size(pageSize),
+                    Map.class);
 
             List<SearchResponse.SearchResultItem> items = new ArrayList<>();
 
             for (Hit<Map> hit : response.hits().hits()) {
                 Map<String, Object> source = hit.source();
-                if (source == null) continue;
+                if (source == null)
+                    continue;
 
                 // Collect highlight fragments
                 List<String> highlights = new ArrayList<>();
@@ -170,8 +159,7 @@ public class ElasticsearchService {
                         docId,
                         title,
                         new SearchResponse.SearchMetadata(author, category, tagsArr, version),
-                        highlights
-                ));
+                        highlights));
             }
 
             long total = response.hits().total() != null ? response.hits().total().value() : 0;

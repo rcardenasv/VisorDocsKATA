@@ -74,7 +74,7 @@ public class DocumentResource {
         doc.title = title;
         doc.author = author;
         doc.category = category;
-        doc.tags = tags;
+        doc.tags = (tags != null && !tags.isBlank()) ? tags.split(",") : new String[0];
         doc.version = version;
         doc.originalFileName = originalName;
         doc.fileType = extension;
@@ -92,11 +92,11 @@ public class DocumentResource {
             Path destination = uploadPath.resolve(doc.id);
             Files.copy(file.filePath(), destination, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to save file", e);
+            throw AppException.internalError("Failed to save file", e);
         }
 
         // Trigger async processing
-        eventBus.send("document.process", doc.id);
+        eventBus.publish("document.process", doc.id);
 
         return Response.accepted(new UploadResponse(doc.id, doc.status.name())).build();
     }
@@ -109,13 +109,11 @@ public class DocumentResource {
             throw AppException.documentNotFound(id);
         }
 
-        String[] tagsArray = (doc.tags != null && !doc.tags.isBlank()) ? doc.tags.split(",") : new String[0];
-
         return new DocumentDetailResponse(
                 doc.id,
                 doc.status.name(),
                 new DocumentDetailResponse.DocumentMetadata(
-                        doc.title, doc.author, doc.category, tagsArray, doc.version
+                        doc.title, doc.author, doc.category, doc.tags, doc.version
                 ),
                 doc.content,
                 doc.originalFileName,
