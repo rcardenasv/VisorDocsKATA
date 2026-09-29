@@ -22,7 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 
-@Path("/api/documents")
+@jakarta.ws.rs.Path("/api/documents")
 @Produces(MediaType.APPLICATION_JSON)
 public class DocumentResource {
 
@@ -102,7 +102,7 @@ public class DocumentResource {
     }
 
     @GET
-    @Path("/{id}")
+    @jakarta.ws.rs.Path("/{id}")
     public DocumentDetailResponse getDocument(@PathParam("id") String id) {
         Document doc = documentRepository.findById(id);
         if (doc == null) {

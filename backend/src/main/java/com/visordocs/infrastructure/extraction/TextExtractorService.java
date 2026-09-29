@@ -62,10 +62,7 @@ public class TextExtractorService {
     private String extractMarkdown(Path filePath) {
         try {
             String markdown = Files.readString(filePath, StandardCharsets.UTF_8);
-            // Use flexmark to strip markdown formatting and get plain text
-            var parser = com.vladsch.flexmark.parser.Parser.builder().build();
-            var document = parser.parse(markdown);
-            var renderer = com.vladsch.flexmark.util.format.TextCollectingAppendable.create();
+            // Simple approach: strip common markdown syntax for indexing
             // Simple approach: strip common markdown syntax for indexing
             // The raw markdown is still valuable for search
             return markdown;
