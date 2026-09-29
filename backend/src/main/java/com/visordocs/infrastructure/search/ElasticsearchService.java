@@ -35,15 +35,69 @@ public class ElasticsearchService {
 
     /**
      * Creates the Elasticsearch index with proper mapping on application startup
-     * if it does not already exist.
+     * if it does not already exist. Retries a few times in case ES is not yet ready.
+     * Does NOT fail the application startup if ES is unavailable; index will be
+     * created on first document processing.
      */
     void onStartup(@Observes StartupEvent event) {
+        int maxRetries = 3;
+        int retryDelayMs = 2000;
+        boolean created = false;
+
+        for (int attempt = 1; attempt <= maxRetries && !created; attempt++) {
+            try {
+                boolean exists = client.indices().exists(
+                        ExistsRequest.of(e -> e.index(indexName))).value();
+
+                if (!exists) {
+                    LOG.infof("Attempt %d: Creating Elasticsearch index: %s", attempt, indexName);
+                    client.indices().create(CreateIndexRequest.of(c -> c
+                            .index(indexName)
+                            .mappings(m -> m
+                                    .properties("documentId", p -> p.keyword(k -> k))
+                                    .properties("title", p -> p.text(t -> t.analyzer("standard")))
+                                    .properties("author", p -> p.text(t -> t.analyzer("standard")))
+                                    .properties("category", p -> p.keyword(k -> k))
+                                    .properties("tags", p -> p.keyword(k -> k))
+                                    .properties("version", p -> p.keyword(k -> k))
+                                    .properties("content", p -> p.text(t -> t.analyzer("standard"))))));
+                    LOG.infof("Index '%s' created successfully", indexName);
+                    created = true;
+                } else {
+                    LOG.infof("Index '%s' already exists", indexName);
+                    created = true;
+                }
+            } catch (IOException e) {
+                LOG.warnf(e, "Elasticsearch not yet available on attempt %d/%d", attempt, maxRetries);
+                if (attempt < maxRetries) {
+                    try {
+                        Thread.sleep(retryDelayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        LOG.errorf(ie, "Interrupted while waiting to retry ES index creation");
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (!created) {
+            LOG.warnf("Could not create Elasticsearch index '%s' after % attempts; " +
+                    "index will be created on first document processing", indexName, maxRetries);
+        }
+    }
+
+    /**
+     * Ensures the Elasticsearch index exists, creating it if necessary.
+     * Meant to be called before the first document indexing operation.
+     * Thread-safe; idempotent – safe to call multiple times.
+     */
+    public void ensureIndexExists() {
         try {
             boolean exists = client.indices().exists(
                     ExistsRequest.of(e -> e.index(indexName))).value();
-
             if (!exists) {
-                LOG.infof("Creating Elasticsearch index: %s", indexName);
+                LOG.infof("Ensuring Elasticsearch index creation: %s", indexName);
                 client.indices().create(CreateIndexRequest.of(c -> c
                         .index(indexName)
                         .mappings(m -> m
@@ -59,7 +113,8 @@ public class ElasticsearchService {
                 LOG.infof("Index '%s' already exists", indexName);
             }
         } catch (IOException e) {
-            LOG.errorf(e, "Failed to initialize Elasticsearch index '%s'", indexName);
+            throw AppException.indexingError(
+                    "Failed to ensure Elasticsearch index: " + e.getMessage(), e);
         }
     }
 

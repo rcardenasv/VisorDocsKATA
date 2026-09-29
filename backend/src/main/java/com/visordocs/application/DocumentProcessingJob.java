@@ -58,6 +58,9 @@ public class DocumentProcessingJob {
             document.content = content;
             
             // Index in ES
+            // Ensure index exists first (idempotent, safe to call multiple times)
+            elasticsearchService.ensureIndexExists();
+            
             elasticsearchService.indexDocument(
                     document.id, document.title, document.author, document.category, document.tags, document.version, content
             );

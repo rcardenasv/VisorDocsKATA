@@ -368,11 +368,17 @@ export class UploadComponent {
     formData.append('version', this.uploadForm.value.version);
 
     this.isUploading.set(true);
-    this.uploadStatus.set({ type: 'processing', icon: '⏳', title: 'Cargado', message: 'El documento está siendo procesado e indexado...' });
 
     this.documentService.uploadDocument(formData).subscribe({
       next: (res) => {
         this.isUploading.set(false);
+        // Mostrar documentoId y status PROCESSING inmediatamente (según contrato API)
+        this.uploadStatus.set({
+          type: 'processing',
+          icon: '⏳',
+          title: 'Procesando',
+          message: `Documento ID: ${res.documentId} — estado: PROCESSING`
+        });
         this.subscribeToSse(res.documentId);
       },
       error: (err) => {
