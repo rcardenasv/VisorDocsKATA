@@ -1,0 +1,103 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+*.class
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# Frontend build
+frontend/dist/
+frontend/node_modules/
+frontend/.angular/
+frontend/coverage/
+
+# Backend specific
+backend/target/
+backend/*.jar
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Test reports
+**/surefire-reports/
+**/failsafe-reports/
+**/jacoco-report/
+*.xml
+*.html
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE run configs
+*.run
+*.run.xml
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# IDEA inspection profiles
+inspectionProfiles/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# NetBeans
+nbproject/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# Quarkus
+.quarkus/
+quarkus-artifact.properties
