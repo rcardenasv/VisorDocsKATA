@@ -58,13 +58,19 @@ graph TD
 | **ORM** | **Hibernate ORM with Panache** | — | Active Record sencillo, menos boilerplate, transacciones automáticas |
 | **Contenedores** | **Docker + Docker Compose** | — | Despliegue reproducible, todos los servicios en contenedores isolados |
 
-### 3.1. Decisiones clave y por qué
+## 3.1. Decisiones clave y por qué
 
 - **Quarkus sobre Spring Boot:** Arranque más rápido (~100ms vs ~2s), native memory footprint bajo, reactive por defecto. Ideal para Docker y orquestación.
 - **Elasticsearch sobre búsqueda SQL LIKE:** La restricción `AGENTS.md§53` prohíbe `LIKE` no indexado. ES 8 proporciona búsquedaFull-Text indexada, highlighting y respuestas en el rango 400-1000ms objetivo.
 - **SSE sobre WebSocket:** El patrón es unidireccional (servidor→cliente notificando estado). SSE es más simple, usa estándar HTTP, y no requiere handshake de WS ni framing binario.
 - **Docker Compose sobre k8s:** El objetivo es KATA/learning, no producción a escala. Docker Compose levanta PG, ES y backend en segundos para desarrollo local.
 - **Clean Architecture:** Separa preocupaciones (dominio puro sin dependencias externas), facilita tests unitarios con Mockito y tests de integración con Testcontainers.
+- **Low-level REST client para ES:** Evita `media_type_header_exception` con ES 8.x al usar cliente de alto nivel (9.x) contra servidor 8.x. Se usa `quarkus-elasticsearch-rest-client` + `elasticsearch-rest-client:8.13.0` para operaciones HEAD/PUT/POST directas.
+- **nginx resolver + variable $backend:** Docker DNS resuelve `backend` solo en runtime; variable en `proxy_pass` fuerza resolución dinámica vs cache al inicio.
+- **nginx location order:** `/api/` y `/api/events` antes de `location /` evita que `try_files` intercepte rutas API.
+- **flush() tras persist:** Garantiza visibilidad del documento en BD antes de publicar evento EventBus para procesamiento asíncrono.
+- **Sanitización null bytes (`\u0000`):** PostgreSQL UTF-8 rechaza bytes nulos; se eliminan en extracción y mensajes de error.
+- **Encoding fallback UTF-8 → ISO-8859-1:** Archivos TXT legacy pueden no ser UTF-8; fallback evita `MalformedInputException`.
 
 ---
 
@@ -121,13 +127,29 @@ sequenceDiagram
 
 ---
 
-## 7. Próximos Pasos de Arquitectura
+## 7. Estado de Implementación (Checklist)
 
-1. [ ] Definir mapeo exacto del índice ES (`docs/architecture.md§60-67`) y crear el índice automáticamente
-2. [ ] Implementar `SearchQueryBuilder` con queries `multi_match` + `highlight` (RF-003, RF-004)
-3. [ ] Resolver error `media_type_header_exception` ajustando `compatibility-mode=false` y cabeceras HTTP
-4. [ ] Implementar `DocumentProcessingJob` con extractores TXT/PDF/MD y `@Blocking`
-5. [ ] Configurar SSE emisi\`on desde `processDocument()` consumidor de EventBus
+| Componente | Estado | Detalles |
+|------------|--------|----------|
+| **Backend Quarkus** | ✅ Completado | Compila, tests pasan, endpoints operativos |
+| **Frontend Angular** | ✅ Completado | Servido por nginx, proxy API funcional |
+| **PostgreSQL** | ✅ Completado | Persistencia con Panache, UUIDs, flush() |
+| **Elasticsearch 8.x** | ✅ Completado | Low-level REST client, index auto-create, search + highlight |
+| **Async Processing** | ✅ Completado | EventBus + @Blocking, TXT/PDF/MD, encoding fallback, sanitización |
+| **SSE Real-time** | ✅ Completado | EventSource nativo, toast + navegación auto |
+| **Docker Compose** | ✅ Completado | 4 servicios (PG, ES, Backend, Frontend) healthy |
+| **Tests** | ✅ Completado | Unitarias (9 ES tests) + Integración (@QuarkusTest) |
+| **Documentación** | ⚠️ Parcial | architecture.md, ia.md ✅; README pendiente |
+| **Benchmark k6** | ⏳ Pendiente | Objetivo p95 < 1000ms |
+
+---
+
+## 8. Próximos Pasos de Arquitectura
+
+1. [ ] Implementar benchmark k6 y medir latencias de búsqueda (objetivo p95 < 1000ms)
+2. [ ] Redactar README con instrucciones de setup, ejecución y variables de entorno
+3. [ ] (Opcional) Añadir métricas Prometheus/Grafana para observabilidad
+4. [ ] (Opcional) Implementar rate limiting y autenticación JWT
 
 ---
 

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DocumentResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">visordocs-backend</a> &gt; <a href="index.source.html" class="el_package">com.visordocs.interfaces</a> &gt; <span class="el_source">DocumentResource.java</span></div><h1>DocumentResource.java</h1><pre class="source lang-java linenums">package com.visordocs.interfaces;
+
+import com.visordocs.domain.AppException;
+import com.visordocs.domain.Document;
+import com.visordocs.domain.DocumentStatus;
+import com.visordocs.infrastructure.persistence.DocumentRepository;
+import com.visordocs.interfaces.dto.DocumentDetailResponse;
+import com.visordocs.interfaces.dto.UploadResponse;
+import io.vertx.core.eventbus.EventBus;
+import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.List;
+
+@jakarta.ws.rs.Path(&quot;/api/documents&quot;)
+@Produces(MediaType.APPLICATION_JSON)
+<span class="fc" id="L27">public class DocumentResource {</span>
+
+    @Inject
+    DocumentRepository documentRepository;
+
+    @Inject
+    EventBus eventBus;
+
+    @ConfigProperty(name = &quot;app.upload.dir&quot;)
+    String uploadDir;
+
+    @ConfigProperty(name = &quot;app.upload.max-size-mb&quot;)
+    long maxSizeMb;
+
+    @ConfigProperty(name = &quot;app.upload.allowed-extensions&quot;)
+    List&lt;String&gt; allowedExtensions;
+
+    @POST
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Transactional
+    public Response uploadDocument(
+            @RestForm(&quot;file&quot;) FileUpload file,
+            @RestForm(&quot;title&quot;) String title,
+            @RestForm(&quot;author&quot;) String author,
+            @RestForm(&quot;category&quot;) String category,
+            @RestForm(&quot;tags&quot;) String tags,
+            @RestForm(&quot;version&quot;) String version) {
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (file == null) throw AppException.validationError(&quot;File is required&quot;);</span>
+<span class="pc bpc" id="L56" title="2 of 4 branches missed.">        if (title == null || title.isBlank()) throw AppException.validationError(&quot;Title is required&quot;);</span>
+<span class="pc bpc" id="L57" title="2 of 4 branches missed.">        if (author == null || author.isBlank()) throw AppException.validationError(&quot;Author is required&quot;);</span>
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">        if (category == null || category.isBlank()) throw AppException.validationError(&quot;Category is required&quot;);</span>
+<span class="pc bpc" id="L59" title="2 of 4 branches missed.">        if (version == null || version.isBlank()) throw AppException.validationError(&quot;Version is required&quot;);</span>
+
+<span class="fc" id="L61">        String originalName = file.fileName();</span>
+<span class="fc" id="L62">        String extension = getExtension(originalName);</span>
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (!allowedExtensions.contains(extension.toLowerCase())) {</span>
+<span class="fc" id="L65">            throw AppException.unsupportedFileType(extension);</span>
+        }
+
+<span class="fc" id="L68">        long sizeBytes = file.size();</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (sizeBytes &gt; maxSizeMb * 1024 * 1024) {</span>
+<span class="nc" id="L70">            throw AppException.fileSizeExceeded(maxSizeMb);</span>
+        }
+
+<span class="fc" id="L73">        Document doc = new Document();</span>
+<span class="fc" id="L74">        doc.title = title;</span>
+<span class="fc" id="L75">        doc.author = author;</span>
+<span class="fc" id="L76">        doc.category = category;</span>
+<span class="pc bpc" id="L77" title="2 of 4 branches missed.">        doc.tags = (tags != null &amp;&amp; !tags.isBlank()) ? tags.split(&quot;,&quot;) : new String[0];</span>
+<span class="fc" id="L78">        doc.version = version;</span>
+<span class="fc" id="L79">        doc.originalFileName = originalName;</span>
+<span class="fc" id="L80">        doc.fileType = extension;</span>
+<span class="fc" id="L81">        doc.fileSize = sizeBytes;</span>
+<span class="fc" id="L82">        doc.status = DocumentStatus.PROCESSING;</span>
+
+<span class="fc" id="L84">        documentRepository.persist(doc);</span>
+<span class="fc" id="L85">        documentRepository.flush();</span>
+
+        // Save file to disk
+        try {
+<span class="fc" id="L89">            Path uploadPath = Path.of(uploadDir);</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">            if (!Files.exists(uploadPath)) {</span>
+<span class="nc" id="L91">                Files.createDirectories(uploadPath);</span>
+            }
+<span class="fc" id="L93">            Path destination = uploadPath.resolve(doc.id);</span>
+<span class="fc" id="L94">            Files.copy(file.filePath(), destination, StandardCopyOption.REPLACE_EXISTING);</span>
+<span class="pc" id="L95">        } catch (IOException e) {</span>
+<span class="nc" id="L96">            throw AppException.internalError(&quot;Failed to save file&quot;, e);</span>
+        }
+
+        // Trigger async processing
+<span class="fc" id="L100">        eventBus.publish(&quot;document.process&quot;, doc.id);</span>
+
+<span class="fc" id="L102">        return Response.accepted(new UploadResponse(doc.id, doc.status.name())).build();</span>
+    }
+
+    @GET
+    @jakarta.ws.rs.Path(&quot;/{id}&quot;)
+    public DocumentDetailResponse getDocument(@PathParam(&quot;id&quot;) String id) {
+<span class="fc" id="L108">        Document doc = documentRepository.findById(id);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (doc == null) {</span>
+<span class="fc" id="L110">            throw AppException.documentNotFound(id);</span>
+        }
+
+<span class="fc" id="L113">        return new DocumentDetailResponse(</span>
+<span class="fc" id="L114">                doc.id,</span>
+<span class="fc" id="L115">                doc.status.name(),</span>
+<span class="fc" id="L116">                new DocumentDetailResponse.DocumentMetadata(</span>
+<span class="fc" id="L117">                        doc.title, doc.author, doc.category, doc.tags, doc.version</span>
+                ),
+<span class="fc" id="L119">                doc.content,</span>
+<span class="fc" id="L120">                doc.originalFileName,</span>
+<span class="fc" id="L121">                doc.fileType,</span>
+<span class="fc" id="L122">                doc.createdAt,</span>
+<span class="fc" id="L123">                doc.updatedAt,</span>
+<span class="fc" id="L124">                doc.errorMessage</span>
+        );
+    }
+
+    private String getExtension(String fileName) {
+<span class="pc bpc" id="L129" title="2 of 4 branches missed.">        if (fileName == null || !fileName.contains(&quot;.&quot;)) return &quot;&quot;;</span>
+<span class="fc" id="L130">        return fileName.substring(fileName.lastIndexOf('.') + 1);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

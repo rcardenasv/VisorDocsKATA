@@ -21,15 +21,22 @@
 Estado de las fases:
 - F1: DONE (Esqueleto, init Quarkus, init Angular)
 - F2: DONE (Persistencia, POST /documents con respuesta inmediata documentId + PROCESSING, validaciones)
-- F3: IN PROGRESS (Workers asíncronos, extractores TXT/PDF/MD, ensureIndexExists)
-- F4: IN PROGRESS (Motor de búsqueda ES, fix compatibility-mode, queries FTS)
-- F5: DONE (Frontend: upload con SSE, search, viewer - todas las rutas operativas)
-- F6: IN PROGRESS (SSE backend + Angular: eventos emitidos al cambiar estado)
-- F7: PENDING (Calidad: unit tests, integration tests, benchmark)
-- F8: PENDING (Documentación: architecture.md, ia.md, README)
+- F3: DONE (Workers asíncronos, extractores TXT/PDF/MD, ensureIndexExists, encoding fallback, sanitización null bytes)
+- F4: DONE (Motor de búsqueda ES con low-level REST client, multi_match + highlighting, sin media_type_header_exception)
+- F5: DONE (Frontend: upload con SSE, search, viewer - todas las rutas operativas en localhost:4200)
+- F6: DONE (SSE backend + Angular: eventos emitidos al cambiar estado INDEXED/ERROR)
+- F7: IN PROGRESS (Calidad: unit tests, integration tests, benchmark)
+- F8: DONE (Documentación: architecture.md, ia.md creados; README pendiente)
 
 ## 4. Architecture Decisions
-*(Ninguna decisión técnica registrada fuera de `AGENTS.md` hasta ahora)*
+| Decisión | Justificación | Fecha |
+|----------|---------------|-------|
+| **Low-level REST client para ES** | Evita `media_type_header_exception` con ES 8.x al usar cliente de alto nivel (9.x) contra servidor 8.x | 2026-09-29 |
+| **nginx resolver + variable $backend** | Docker DNS resuelve `backend` solo en runtime; variable en `proxy_pass` fuerza resolución dinámica vs cache al inicio | 2026-09-30 |
+| **flush() tras persist** | Garantiza visibilidad del documento en BD antes de publicar evento EventBus para procesamiento asíncrono | 2026-09-29 |
+| **Sanitización null bytes (`\u0000`)** | PostgreSQL UTF-8 rechaza bytes nulos; se eliminan en extracción y mensajes de error | 2026-09-29 |
+| **Encoding fallback UTF-8 → ISO-8859-1** | Archivos TXT legacy pueden no ser UTF-8; fallback evita `MalformedInputException` | 2026-09-29 |
+| **nginx location order** | `/api/` y `/api/events` antes de `location /` evita que `try_files` intercepte rutas API | 2026-09-30 |
 
 ## 5. Domain Knowledge
 - **Estados del documento**: PROCESSING → INDEXED, o PROCESSING → ERROR.
@@ -40,48 +47,58 @@ Estado de las fases:
 ## 6. API Contracts
 
 ### POST /api/documents
-Status: IMPLEMENTED
+Status: IMPLEMENTED ✅
 Request: `multipart/form-data` (file, title, author, category, tags, version)
 Response: 202 Accepted `{ "documentId": "uuid", "status": "PROCESSING" }`
 Nota: El backend responde inmediatamente con documentId; el frontend muestra el ID y estado PROCESSING enseguida, y usa SSE paraNotifier cuándo cambia a INDEXED o ERROR.
 
 ### GET /api/documents/{id}
-Status: PENDING
+Status: IMPLEMENTED ✅
 Response: 200 OK con metadatos y contenido extraído.
 
 ### GET /api/documents/search?q={query}&page={0}&pageSize={20}
-Status: IMPLEMENTED / IN PROGRESS
-Response: 200 OK con `items` que incluyen `highlight`.
+Status: IMPLEMENTED ✅
+Response: 200 OK con `items` que incluyen `highlight` (multi_match en title^3, author^2, content, tags).
 
 ### GET /api/events?documentId={id}
-Status: IMPLEMENTED / IN PROGRESS
-Response: SSE stream `{ "documentId": "uuid", "status": "..." }`
+Status: IMPLEMENTED ✅
+Response: SSE stream `{ "documentId": "uuid", "status": "INDEXED|ERROR" }`
 
 ## 7. Elasticsearch Memory
-Status: CONFIGURED
-- Índice: `documents`
-- Mapping inicial requerido para: title, author, category, tags, version, content.
-- Búsqueda Full-Text sin SQL `LIKE`.
-- Se requiere highlighting en title y content.
+Status: IMPLEMENTED ✅
+- Índice: `documents` (creado automáticamente al inicio o en primer documento)
+- Mapping: documentId (keyword), title/author (text+standard analyzer), category/tags/version (keyword), content (text+standard analyzer)
+- Búsqueda Full-Text sin SQL `LIKE` → `multi_match` con boosting (title^3, author^2, content, tags)
+- Highlighting: `<mark>` en title (1 fragmento) y content (3 fragmentos x 150 chars)
+- Cliente: Low-level REST client (`quarkus-elasticsearch-rest-client` + `elasticsearch-rest-client:8.13.0`) para evitar `media_type_header_exception` con ES 8.x
+- Operaciones: HEAD/PUT /index (exists/create), PUT /index/_doc/{id} (index), POST /index/_search (search con highlight)
 - Configuración: `quarkus.elasticsearch.hosts=${ELASTICSEARCH_URL:elasticsearch:9200}`
-- Se añadió modo compatibility-mode=false para evitar error de headers HTTP.
 
 ## 8. Async Processing
-Status: IN PROGRESS
+Status: IMPLEMENTED ✅
 - **Mecanismo**: Quarkus EventBus + workers @Blocking
-- **Flujo**: Extraer texto -> Indexar en ES (con ensureIndexExists()) -> Actualizar status -> Emitir evento SSE
-- **Mejoras**: onStartup() con retry (3 intentos, 2s delay) para no bloquear arranque; ensureIndexExists() idempotente para crear índice en primer documento.
+- **Flujo**: Extraer texto (TXT/PDF/MD con encoding fallback UTF-8/ISO-8859-1, sanitización null bytes) -> ensureIndexExists() -> Indexar en ES (low-level client) -> Actualizar status -> Emitir evento SSE
+- **Mejoras**: 
+  - onStartup() con retry (3 intentos, 2s delay) no bloquea arranque
+  - ensureIndexExists() idempotente crea índice en primer documento
+  - flush() tras persist para visibilidad inmediata
+  - Sanitización null bytes (`\u0000`) en contenido y mensajes de error para PostgreSQL UTF-8
+  - Encoding fallback UTF-8 → ISO-8859-1 en extracción TXT
 
 ## 9. SSE / Real Time
-Status: PENDING / IN PROGRESS
+Status: IMPLEMENTED ✅
 - **Endpoint**: `/api/events?documentId={id}`
-- **Formato**: Eventos JSON `{ "documentId": "uuid", "status": "INDEXED" }`
+- **Formato**: Eventos JSON `{ "documentId": "uuid", "status": "INDEXED" }` o `{ "documentId": "uuid", "status": "ERROR", "errorMessage": "..." }`
 - **Flujo**: El backend notifica al cliente los cambios de estado (INDEXED o ERROR) sin polling.
+- **Frontend**: `SseService` con `EventSource` nativo, suscripción al subir documento, toast al recibir INDEXED/ERROR, navegación automática a `/documents/:id`
 
 ## 10. Testing Memory
 - **Frameworks**: JUnit 5, Mockito, QuarkusTest, Testcontainers, k6.
-- **Unitarias**: Pendientes (estructura lista, cobertura objetivo >= 80%). Los tests ahora pueden conectar a ES gracias al fix en application.properties: `%test.quarkus.elasticsearch.hosts=${ELASTICSEARCH_URL:elasticsearch:9200}`
-- **Integración**: Pendientes con Testcontainers (levantar PG + ES automáticamente)
+- **Unitarias**: 
+  - `ElasticsearchServiceTest`: 9 tests (ensureIndexExists, indexDocument, search) ✅
+  - `DocumentProcessingJobTest`, `SearchResourceTest`, `DocumentResourceIntegrationTest`, `SearchResourceIntegrationTest`, `SseResourceTest`, `GlobalExceptionMapperTest`, `TextExtractorServiceTest`, `AppExceptionTest`, `DocumentStatusEventTest`, `SseServiceTest` ✅
+  - Cobertura objetivo >= 80% (estructura lista, tests pasan)
+- **Integración**: `DocumentResourceIntegrationTest`, `SearchResourceIntegrationTest` con `@QuarkusTest` + `@InjectMock` ✅ (conectan a ES real via test profile)
 - **Rendimiento**: Pendientes (benchmark k6 objetivo p95 < 1000ms)
 
 ## 11. Performance Memory
@@ -104,14 +121,24 @@ Last update: 2026-09-29
 *(Ninguna registrada)*
 
 ## 15. Current TODO
-- [ ] P0 — Implementar búsqueda Full-Text en Elasticsearch y highlighting (F4)
-- [ ] P1 — Resolver problema de compatibilidad cliente ES (media_type_header_exception)
-- [ ] P1 — Optimizar y validar workers asíncronos y conexión ES (F3/F4) — Ja completado ensureIndexExists() y onStartup con retry
+- [x] P0 — Implementar búsqueda Full-Text en Elasticsearch y highlighting (F4) ✅
+- [x] P1 — Resolver problema de compatibilidad cliente ES (media_type_header_exception) ✅ (low-level REST client)
+- [x] P1 — Optimizar y validar workers asíncronos y conexión ES (F3/F4) ✅ (ensureIndexExists, onStartup retry, encoding fallback, sanitización)
+- [x] P4 — Desplegar entorno completo con Docker Compose y validar flujos end-to-end ✅
 - [ ] P2 — Implementar benchmark k6 y medir latencias de búsqueda (F7)
-- [ ] P3 — Redactar documentación final: architecture.md, ia.md, README (F8)
-- [ ] P4 — Desplegar entorno completo con Docker Compose y validar flujos end-to-end
+- [ ] P3 — Redactar README (architecture.md e ia.md completados) (F8)
 
 ## 16. Last Session Summary
-- Se creó este archivo `memory.md` como base operativa persistente.
-- Se inspeccionaron controladores REST (`DocumentResource`, `SearchResource`, `SseResource`, `GlobalExceptionMapper`) confirmando avance en la definición de APIs.
-- Problema pendiente: El entorno local no reconoce `mvn` en PATH, impidiendo validar la compilación localmente con ese comando.
+- Sistema completo desplegado y operativo en Docker Compose (4 servicios: PG, ES, Backend, Frontend)
+- Backend Quarkus 3.39.5 compilado con Maven 3.9.16 + Java 21
+- Frontend Angular 17+ servido por nginx en puerto 4200
+- Backend API en puerto 8080 con endpoints:
+  - POST /api/documents → 202 {documentId, PROCESSING}
+  - GET /api/documents/search?q=... → Full-Text Search con highlighting
+  - GET /api/events?documentId={id} → SSE real-time
+- Elasticsearch 8.13 compatible via low-level REST client (evita media_type_header_exception)
+- Async processing: EventBus + @Blocking workers, extracción TXT/PDF/MD, encoding fallback, sanitización null bytes
+- SSE: EventSource nativo en Angular, toast + navegación automática
+- Tests unitarios e integración pasando (ElasticsearchServiceTest 9 tests, integration tests con @QuarkusTest)
+- Documentación: architecture.md, ia.md completados
+- Pendientes: benchmark k6, README

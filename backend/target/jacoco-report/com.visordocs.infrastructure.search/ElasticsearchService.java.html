@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ElasticsearchService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">visordocs-backend</a> &gt; <a href="index.source.html" class="el_package">com.visordocs.infrastructure.search</a> &gt; <span class="el_source">ElasticsearchService.java</span></div><h1>ElasticsearchService.java</h1><pre class="source lang-java linenums"><span class="nc" id="L1">package com.visordocs.infrastructure.search;</span>
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.IndexRequest;
+import com.visordocs.domain.AppException;
+import com.visordocs.interfaces.dto.SearchResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.quarkus.runtime.StartupEvent;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Elasticsearch service for indexing and searching documents.
+ * Uses high-level client for indexing, low-level REST client for search and index operations
+ * to avoid media_type_header_exception with Elasticsearch 8.x.
+ */
+@ApplicationScoped
+<span class="fc" id="L35">public class ElasticsearchService {</span>
+
+<span class="fc" id="L37">    private static final Logger LOG = Logger.getLogger(ElasticsearchService.class);</span>
+
+    @Inject
+    ElasticsearchClient client;
+
+    @Inject
+    ObjectMapper objectMapper;
+
+    @ConfigProperty(name = &quot;app.elasticsearch.index&quot;, defaultValue = &quot;documents&quot;)
+    String indexName;
+
+    @ConfigProperty(name = &quot;quarkus.elasticsearch.hosts&quot;)
+    String hostsConfig;
+
+    // Low-level REST client for search and index operations (avoids media_type_header_exception with ES 8.x)
+    private RestClient lowLevelClient;
+
+    /**
+     * Creates the Elasticsearch index with proper mapping on application startup
+     * if it does not already exist. Retries a few times in case ES is not yet ready.
+     * Does NOT fail the application startup if ES is unavailable; index will be
+     * created on first document processing.
+     */
+    void onStartup(@Observes StartupEvent event) {
+        // Initialize low-level client for search and index operations
+<span class="fc" id="L62">        initLowLevelClient();</span>
+
+<span class="fc" id="L64">        int maxRetries = 3;</span>
+<span class="fc" id="L65">        int retryDelayMs = 2000;</span>
+<span class="fc" id="L66">        boolean created = false;</span>
+
+<span class="pc bpc" id="L68" title="1 of 4 branches missed.">        for (int attempt = 1; attempt &lt;= maxRetries &amp;&amp; !created; attempt++) {</span>
+            try {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                if (indexExists()) {</span>
+<span class="nc" id="L71">                    LOG.infof(&quot;Index '%s' already exists&quot;, indexName);</span>
+<span class="nc" id="L72">                    created = true;</span>
+<span class="nc" id="L73">                } else {</span>
+<span class="nc" id="L74">                    LOG.infof(&quot;Attempt %d: Creating Elasticsearch index: %s&quot;, attempt, indexName);</span>
+<span class="nc" id="L75">                    createIndex();</span>
+<span class="nc" id="L76">                    LOG.infof(&quot;Index '%s' created successfully&quot;, indexName);</span>
+<span class="nc" id="L77">                    created = true;</span>
+                }
+<span class="pc" id="L79">            } catch (IOException e) {</span>
+<span class="fc" id="L80">                LOG.warnf(e, &quot;Elasticsearch not yet available on attempt %d/%d&quot;, attempt, maxRetries);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">                if (attempt &lt; maxRetries) {</span>
+                    try {
+<span class="fc" id="L83">                        Thread.sleep(retryDelayMs);</span>
+<span class="pc" id="L84">                    } catch (InterruptedException ie) {</span>
+<span class="nc" id="L85">                        Thread.currentThread().interrupt();</span>
+<span class="nc" id="L86">                        LOG.errorf(ie, &quot;Interrupted while waiting to retry ES index creation&quot;);</span>
+<span class="nc" id="L87">                        return;</span>
+                    }
+                }
+            }
+        }
+
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (!created) {</span>
+<span class="fc" id="L94">            LOG.warnf(&quot;Could not create Elasticsearch index '%s' after %d attempts; &quot; +</span>
+<span class="fc" id="L95">                    &quot;index will be created on first document processing&quot;, indexName, maxRetries);</span>
+        }
+<span class="fc" id="L97">    }</span>
+
+    private void initLowLevelClient() {
+<span class="fc" id="L100">        List&lt;HttpHost&gt; hosts = parseHosts(hostsConfig);</span>
+<span class="fc" id="L101">        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[0]));</span>
+<span class="fc" id="L102">        lowLevelClient = builder.build();</span>
+<span class="fc" id="L103">        LOG.info(&quot;Low-level Elasticsearch REST client initialized for search and index operations&quot;);</span>
+<span class="fc" id="L104">    }</span>
+
+    /**
+     * Ensures the Elasticsearch index exists, creating it if necessary.
+     * Meant to be called before the first document indexing operation.
+     * Thread-safe; idempotent – safe to call multiple times.
+     */
+    public void ensureIndexExists() {
+        try {
+<span class="nc bnc" id="L113" title="All 2 branches missed.">            if (!indexExists()) {</span>
+<span class="nc" id="L114">                LOG.infof(&quot;Ensuring Elasticsearch index creation: %s&quot;, indexName);</span>
+<span class="nc" id="L115">                createIndex();</span>
+<span class="nc" id="L116">                LOG.infof(&quot;Index '%s' created successfully&quot;, indexName);</span>
+<span class="nc" id="L117">            } else {</span>
+<span class="nc" id="L118">                LOG.infof(&quot;Index '%s' already exists&quot;, indexName);</span>
+            }
+<span class="nc" id="L120">        } catch (IOException e) {</span>
+<span class="nc" id="L121">            throw AppException.indexingError(</span>
+<span class="nc" id="L122">                    &quot;Failed to ensure Elasticsearch index: &quot; + e.getMessage(), e);</span>
+        }
+<span class="nc" id="L124">    }</span>
+
+    private boolean indexExists() throws IOException {
+<span class="fc" id="L127">        Request request = new Request(&quot;HEAD&quot;, &quot;/&quot; + indexName);</span>
+<span class="nc" id="L128">        Response response = lowLevelClient.performRequest(request);</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        return response.getStatusLine().getStatusCode() == 200;</span>
+    }
+
+    private void createIndex() throws IOException {
+<span class="nc" id="L133">        ObjectNode mapping = objectMapper.createObjectNode();</span>
+<span class="nc" id="L134">        ObjectNode properties = mapping.putObject(&quot;properties&quot;);</span>
+        
+<span class="nc" id="L136">        properties.putObject(&quot;documentId&quot;).put(&quot;type&quot;, &quot;keyword&quot;);</span>
+<span class="nc" id="L137">        properties.putObject(&quot;title&quot;).put(&quot;type&quot;, &quot;text&quot;).put(&quot;analyzer&quot;, &quot;standard&quot;);</span>
+<span class="nc" id="L138">        properties.putObject(&quot;author&quot;).put(&quot;type&quot;, &quot;text&quot;).put(&quot;analyzer&quot;, &quot;standard&quot;);</span>
+<span class="nc" id="L139">        properties.putObject(&quot;category&quot;).put(&quot;type&quot;, &quot;keyword&quot;);</span>
+<span class="nc" id="L140">        properties.putObject(&quot;tags&quot;).put(&quot;type&quot;, &quot;keyword&quot;);</span>
+<span class="nc" id="L141">        properties.putObject(&quot;version&quot;).put(&quot;type&quot;, &quot;keyword&quot;);</span>
+<span class="nc" id="L142">        properties.putObject(&quot;content&quot;).put(&quot;type&quot;, &quot;text&quot;).put(&quot;analyzer&quot;, &quot;standard&quot;);</span>
+
+<span class="nc" id="L144">        ObjectNode body = objectMapper.createObjectNode();</span>
+<span class="nc" id="L145">        body.set(&quot;mappings&quot;, mapping);</span>
+
+<span class="nc" id="L147">        Request request = new Request(&quot;PUT&quot;, &quot;/&quot; + indexName);</span>
+<span class="nc" id="L148">        request.setJsonEntity(objectMapper.writeValueAsString(body));</span>
+<span class="nc" id="L149">        lowLevelClient.performRequest(request);</span>
+<span class="nc" id="L150">    }</span>
+
+    /**
+     * Indexes a document in Elasticsearch.
+     *
+     * @param documentId unique identifier
+     * @param title      document title
+     * @param author     document author
+     * @param category   document category
+     * @param tags       array of tags
+     * @param version    document version
+     * @param content    extracted text content
+     */
+    public void indexDocument(String documentId, String title, String author,
+            String category, String[] tags, String version, String content) {
+        try {
+<span class="nc" id="L166">            ObjectNode doc = objectMapper.createObjectNode();</span>
+<span class="nc" id="L167">            doc.put(&quot;documentId&quot;, documentId);</span>
+<span class="nc" id="L168">            doc.put(&quot;title&quot;, title);</span>
+<span class="nc" id="L169">            doc.put(&quot;author&quot;, author);</span>
+<span class="nc" id="L170">            doc.put(&quot;category&quot;, category);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            doc.put(&quot;tags&quot;, objectMapper.valueToTree(tags != null ? Arrays.asList(tags) : List.of()));</span>
+<span class="nc" id="L172">            doc.put(&quot;version&quot;, version);</span>
+<span class="nc" id="L173">            doc.put(&quot;content&quot;, content);</span>
+
+<span class="nc" id="L175">            Request request = new Request(&quot;PUT&quot;, &quot;/&quot; + indexName + &quot;/_doc/&quot; + documentId);</span>
+<span class="nc" id="L176">            request.setJsonEntity(objectMapper.writeValueAsString(doc));</span>
+
+<span class="nc" id="L178">            Response response = lowLevelClient.performRequest(request);</span>
+            
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            if (response.getStatusLine().getStatusCode() &gt;= 400) {</span>
+<span class="nc" id="L181">                throw new IOException(&quot;Failed to index document: &quot; + response.getStatusLine().getReasonPhrase());</span>
+            }
+
+<span class="nc" id="L184">            LOG.infof(&quot;Document '%s' indexed successfully&quot;, documentId);</span>
+<span class="nc" id="L185">        } catch (IOException e) {</span>
+<span class="nc" id="L186">            throw AppException.indexingError(e.getMessage(), e);</span>
+        }
+<span class="nc" id="L188">    }</span>
+
+    /**
+     * Performs a Full-Text Search with highlighting across title, author, content,
+     * and tags using the low-level REST client to avoid media_type_header_exception.
+     *
+     * @param queryText search query
+     * @param page      zero-based page number
+     * @param pageSize  results per page
+     * @return search response with paginated results and highlights
+     */
+    public SearchResponse search(String queryText, int page, int pageSize) {
+        try {
+            // Build the search request body
+<span class="nc" id="L202">            ObjectNode searchBody = objectMapper.createObjectNode();</span>
+            
+<span class="nc" id="L204">            ObjectNode multiMatch = objectMapper.createObjectNode();</span>
+<span class="nc" id="L205">            multiMatch.put(&quot;query&quot;, queryText);</span>
+<span class="nc" id="L206">            multiMatch.set(&quot;fields&quot;, objectMapper.valueToTree(List.of(&quot;title^3&quot;, &quot;author^2&quot;, &quot;content&quot;, &quot;tags&quot;)));</span>
+            
+<span class="nc" id="L208">            ObjectNode query = objectMapper.createObjectNode();</span>
+<span class="nc" id="L209">            query.set(&quot;multi_match&quot;, multiMatch);</span>
+<span class="nc" id="L210">            searchBody.set(&quot;query&quot;, query);</span>
+
+<span class="nc" id="L212">            ObjectNode highlight = objectMapper.createObjectNode();</span>
+<span class="nc" id="L213">            highlight.set(&quot;pre_tags&quot;, objectMapper.valueToTree(List.of(&quot;&lt;mark&gt;&quot;)));</span>
+<span class="nc" id="L214">            highlight.set(&quot;post_tags&quot;, objectMapper.valueToTree(List.of(&quot;&lt;/mark&gt;&quot;)));</span>
+            
+<span class="nc" id="L216">            ObjectNode fields = objectMapper.createObjectNode();</span>
+<span class="nc" id="L217">            fields.set(&quot;title&quot;, objectMapper.createObjectNode().put(&quot;number_of_fragments&quot;, 1));</span>
+<span class="nc" id="L218">            fields.set(&quot;content&quot;, objectMapper.createObjectNode()</span>
+<span class="nc" id="L219">                    .put(&quot;fragment_size&quot;, 150)</span>
+<span class="nc" id="L220">                    .put(&quot;number_of_fragments&quot;, 3));</span>
+<span class="nc" id="L221">            highlight.set(&quot;fields&quot;, fields);</span>
+<span class="nc" id="L222">            searchBody.set(&quot;highlight&quot;, highlight);</span>
+
+<span class="nc" id="L224">            searchBody.put(&quot;from&quot;, page * pageSize);</span>
+<span class="nc" id="L225">            searchBody.put(&quot;size&quot;, pageSize);</span>
+
+            // Execute search using low-level REST client
+<span class="nc" id="L228">            Request request = new Request(&quot;POST&quot;, &quot;/&quot; + indexName + &quot;/_search&quot;);</span>
+<span class="nc" id="L229">            request.setJsonEntity(objectMapper.writeValueAsString(searchBody));</span>
+            
+<span class="nc" id="L231">            Response response = lowLevelClient.performRequest(request);</span>
+            
+            // Parse response
+<span class="nc" id="L234">            JsonNode responseJson = objectMapper.readTree(response.getEntity().getContent());</span>
+            
+<span class="nc" id="L236">            return parseSearchResponse(responseJson, page, pageSize);</span>
+<span class="nc" id="L237">        } catch (IOException e) {</span>
+<span class="nc" id="L238">            throw AppException.searchError(e.getMessage(), e);</span>
+        }
+    }
+
+    private SearchResponse parseSearchResponse(JsonNode responseJson, int page, int pageSize) {
+<span class="nc" id="L243">        List&lt;SearchResponse.SearchResultItem&gt; items = new ArrayList&lt;&gt;();</span>
+        
+<span class="nc" id="L245">        JsonNode hits = responseJson.path(&quot;hits&quot;);</span>
+<span class="nc" id="L246">        long total = hits.path(&quot;total&quot;).path(&quot;value&quot;).asLong(0);</span>
+        
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        for (JsonNode hit : hits.path(&quot;hits&quot;)) {</span>
+<span class="nc" id="L249">            JsonNode source = hit.path(&quot;_source&quot;);</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if (source.isMissingNode()) continue;</span>
+
+            // Collect highlight fragments
+<span class="nc" id="L253">            List&lt;String&gt; highlights = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L254">            JsonNode highlight = hit.path(&quot;highlight&quot;);</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            if (!highlight.isMissingNode()) {</span>
+<span class="nc" id="L256">                highlight.fields().forEachRemaining(entry -&gt; {</span>
+<span class="nc" id="L257">                    entry.getValue().forEach(fragment -&gt; highlights.add(fragment.asText()));</span>
+<span class="nc" id="L258">                });</span>
+            }
+
+<span class="nc" id="L261">            String docId = source.path(&quot;documentId&quot;).asText();</span>
+<span class="nc" id="L262">            String title = source.path(&quot;title&quot;).asText();</span>
+<span class="nc" id="L263">            String author = source.path(&quot;author&quot;).asText();</span>
+<span class="nc" id="L264">            String category = source.path(&quot;category&quot;).asText();</span>
+<span class="nc" id="L265">            String version = source.path(&quot;version&quot;).asText();</span>
+
+<span class="nc" id="L267">            Object tagsObj = source.path(&quot;tags&quot;);</span>
+            String[] tagsArr;
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            if (tagsObj instanceof List&lt;?&gt; tagsList) {</span>
+<span class="nc" id="L270">                tagsArr = tagsList.stream()</span>
+<span class="nc" id="L271">                        .map(Object::toString)</span>
+<span class="nc" id="L272">                        .toArray(String[]::new);</span>
+<span class="nc" id="L273">            } else {</span>
+<span class="nc" id="L274">                tagsArr = new String[0];</span>
+            }
+
+<span class="nc" id="L277">            items.add(new SearchResponse.SearchResultItem(</span>
+<span class="nc" id="L278">                    docId,</span>
+<span class="nc" id="L279">                    title,</span>
+<span class="nc" id="L280">                    new SearchResponse.SearchMetadata(author, category, tagsArr, version),</span>
+<span class="nc" id="L281">                    highlights));</span>
+        }
+
+<span class="nc" id="L284">        return new SearchResponse(items, page, pageSize, total);</span>
+    }
+
+    private List&lt;HttpHost&gt; parseHosts(String hostsConfig) {
+<span class="fc" id="L288">        return Arrays.stream(hostsConfig.split(&quot;,&quot;))</span>
+<span class="fc" id="L289">                .map(String::trim)</span>
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">                .filter(s -&gt; !s.isEmpty())</span>
+<span class="fc" id="L291">                .map(this::parseHost)</span>
+<span class="fc" id="L292">                .collect(Collectors.toList());</span>
+    }
+
+    private HttpHost parseHost(String host) {
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">        if (host.startsWith(&quot;http://&quot;)) {</span>
+<span class="nc" id="L297">            host = host.substring(7);</span>
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">        } else if (host.startsWith(&quot;https://&quot;)) {</span>
+<span class="nc" id="L299">            host = host.substring(8);</span>
+        }
+<span class="fc" id="L301">        String[] parts = host.split(&quot;:&quot;);</span>
+<span class="fc" id="L302">        String hostname = parts[0];</span>
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">        int port = parts.length &gt; 1 ? Integer.parseInt(parts[1]) : 9200;</span>
+<span class="pc bpc" id="L304" title="2 of 4 branches missed.">        String scheme = host.startsWith(&quot;https://&quot;) || host.contains(&quot;https&quot;) ? &quot;https&quot; : &quot;http&quot;;</span>
+<span class="fc" id="L305">        return new HttpHost(hostname, port, scheme);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

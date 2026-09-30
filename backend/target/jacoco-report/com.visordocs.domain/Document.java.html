@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Document.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">visordocs-backend</a> &gt; <a href="index.source.html" class="el_package">com.visordocs.domain</a> &gt; <span class="el_source">Document.java</span></div><h1>Document.java</h1><pre class="source lang-java linenums">package com.visordocs.domain;
+
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.*;
+import java.time.Instant;
+
+/**
+ * Core domain entity representing a technical document in the system.
+ * &lt;p&gt;
+ * Persisted in PostgreSQL via Hibernate Panache. Text content is extracted
+ * asynchronously after upload and then indexed in Elasticsearch.
+ */
+@Entity
+@Table(name = &quot;documents&quot;)
+<span class="fc" id="L15">public class Document extends PanacheEntityBase {</span>
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    public String id;
+
+    @Column(nullable = false)
+    public String title;
+
+    @Column(nullable = false)
+    public String author;
+
+    @Column(nullable = false)
+    public String category;
+
+    @Column(name = &quot;tags&quot;, columnDefinition = &quot;text[]&quot;)
+    public String[] tags;
+
+    @Column(nullable = false)
+    public String version;
+
+    @Column(name = &quot;original_file_name&quot;)
+    public String originalFileName;
+
+    @Column(name = &quot;file_type&quot;)
+    public String fileType; // &quot;txt&quot; | &quot;pdf&quot; | &quot;md&quot;
+
+    @Column(name = &quot;file_size&quot;)
+    public Long fileSize;
+
+    @Column(columnDefinition = &quot;text&quot;)
+    public String content; // extracted text content
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+<span class="fc" id="L50">    public DocumentStatus status = DocumentStatus.PROCESSING;</span>
+
+    @Column(name = &quot;error_message&quot;)
+    public String errorMessage;
+
+    @Column(name = &quot;created_at&quot;)
+    public Instant createdAt;
+
+    @Column(name = &quot;updated_at&quot;)
+    public Instant updatedAt;
+
+    @PrePersist
+    void onPrePersist() {
+<span class="nc" id="L63">        createdAt = Instant.now();</span>
+<span class="nc" id="L64">        updatedAt = Instant.now();</span>
+<span class="nc" id="L65">    }</span>
+
+    @PreUpdate
+    void onPreUpdate() {
+<span class="nc" id="L69">        updatedAt = Instant.now();</span>
+<span class="nc" id="L70">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

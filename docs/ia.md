@@ -69,6 +69,19 @@ El endpoint GET /api/documents/search devuelve error `[media_type_header_excepti
 ¿Cuál es la configuración correcta para setear `compatibility-mode=false` en Quarkus 3.x? ¿O hay que ajustar `quarkus.elasticsearch.http.headers` en su lugar? Investigar y proponer la solución mínima que funcione.
 ```
 
+### 3.5. Fix nginx proxy para frontend (API 404 en Docker)
+
+```
+El frontend en nginx (puerto 4200) devuelve 404 en todas las peticiones /api/* porque:
+1. nginx cachea la resolución DNS de `backend` al inicio (antes de que el contenedor backend esté listo)
+2. El orden de `location /` antes de `location /api/` hace que `try_files` intercepte las peticiones
+
+Solución aplicada:
+1. Añadir `resolver 127.0.0.11 valid=10s;` (DNS interno de Docker)
+2. Usar variable en `proxy_pass`: `set $backend "http://backend:8080"; proxy_pass $backend;`
+3. Poner `location /api/` y `/api/events` ANTES de `location /`
+```
+
 ### 3.4. Creación de componente Angular de subida
 
 ```
@@ -108,7 +121,8 @@ graph TD
 | Área | Tarea | Validado por | Resultado |
 |------|-------|--------------|-----------|
 | **Backend** | Configuración ES en application.properties | Ingeniero humano | Aprobado: `%test.quarkus.elasticsearch.hosts=${ELASTICSEARCH_URL:elasticsearch:9200}` |
-| **Backend** | Fix `compatibility-mode=false` | Ingeniero humano | Aprobado: resuelve error `media_type_header_exception` |
+| **Backend** | Fix `compatibility-mode=false` (low-level REST client) | Ingeniero humano | Aprobado: resuelve error `media_type_header_exception` |
+| **Backend** | nginx proxy fix (resolver + variable $backend) | Ingeniero humano | Aprobado: resuelve 404 en /api/* desde frontend |
 | **Frontend** | Componente upload con SSE | Ingeniero humano | Aprobado: muestra documentId inmediatamente + SSE subscription |
 | **Arquitectura** | Decisiones en `architecture.md` | Ingeniero humano | Aprobado: coherente con AGENTS.md y restricciones |
 | **Testing** | Estructura de TODO y memory.md | Ingeniero humano | Aprobado: refleja estado real del proyecto |
@@ -130,11 +144,12 @@ graph TD
 
 Los siguientes documentos relacionados con IA aún no están completos y podrían generarse en futuras sesiones:
 
-- [ ] `docs/architecture.md§7` - Decisiones de arquitectura documentadas
+- [ ] `docs/architecture.md§7` - Decisiones de arquitectura documentadas ✅ (actualizado)
 - [ ] Ejemplos de queries ES optimizadas (perfil de rendimiento)
 - [ ] Patrones de SSE en Angular reutilizables
 - [ ] Plantillas de tests unitarios para servicios Quarkus
+- [ ] Documentación del nginx resolver pattern para Docker Compose
 
 ---
 
-*Documento generado con asistencia de IA (nvidia/nemotron-3.5-lightning-30b-a3b) y validación humana. Última actualización: 2026-09-29. Consulte `AGENTS.md§600` sobre principio "Documenta decisiones".*
+*Documento generado con asistencia de IA (nvidia/nemotron-3.5-lightning-30b-a3b) y validación humana. Última actualización: 2026-09-30. Consulte `AGENTS.md§600` sobre principio "Documenta decisiones".*

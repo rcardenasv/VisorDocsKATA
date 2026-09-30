@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">visordocs-backend</a> &gt; <a href="index.source.html" class="el_package">com.visordocs.interfaces</a> &gt; <span class="el_source">SearchResource.java</span></div><h1>SearchResource.java</h1><pre class="source lang-java linenums">package com.visordocs.interfaces;
+
+import com.visordocs.infrastructure.search.ElasticsearchService;
+import com.visordocs.interfaces.dto.SearchResponse;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+
+@Path(&quot;/api/documents/search&quot;)
+@Produces(MediaType.APPLICATION_JSON)
+<span class="fc" id="L11">public class SearchResource {</span>
+
+    @Inject
+    ElasticsearchService elasticsearchService;
+
+    @GET
+    public SearchResponse search(
+            @QueryParam(&quot;q&quot;) String query,
+            @QueryParam(&quot;page&quot;) @DefaultValue(&quot;0&quot;) int page,
+            @QueryParam(&quot;pageSize&quot;) @DefaultValue(&quot;20&quot;) int pageSize) {
+        
+<span class="fc bfc" id="L22" title="All 4 branches covered.">        if (query == null || query.isBlank()) {</span>
+<span class="fc" id="L23">            return new SearchResponse(java.util.Collections.emptyList(), page, pageSize, 0);</span>
+        }
+        
+<span class="fc" id="L26">        return elasticsearchService.search(query, page, pageSize);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
