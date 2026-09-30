@@ -98,6 +98,10 @@ nbdist/
 # Maven wrapper
 .mvn/wrapper/maven-wrapper.jar
 
+# Benchmark
+benchmark_docs/
+k6/
+
 # Quarkus
 .quarkus/
 quarkus-artifact.properties

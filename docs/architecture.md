@@ -22,24 +22,37 @@ El sistema permite:
 
 ```mermaid
 graph TD
-    subgraph "Capa de Presentación (Frontend)"
-        A[Angular 17+] -->|HTTP REST| B[Quarkus Backend]
-        A -->|SSE| B
+    subgraph FE [Capa de Presentación - Angular 17+]
+        UI[Componentes UI] -->|HTTP REST| API_GW[API Gateway / Nginx]
+        UI -->|EventSource| SSE_C[SSE Client]
     end
 
-    subgraph "Capa de Aplicación"
-        C[Use-Cases] -->|Orchestration| D[Services]
+    subgraph BE [Capa de Backend - Quarkus 3.x]
+        API_GW -->|Request| REST[REST Resources]
+        
+        subgraph APP [Capa de Aplicación]
+            REST -->|Invokes| UC[Use Cases / Services]
+            UC -->|Publishes| EB[Quarkus EventBus]
+        end
+
+        subgraph INF [Capa de Infraestructura]
+            UC -->|Panache| PG[(PostgreSQL 16)]
+            UC -->|Java Client| ES[(Elasticsearch 8)]
+            
+            EB -->|Async Event| JOB[DocumentProcessingJob]
+            JOB -->|Extract Text| EXT[Extractors: PDF/MD/TXT]
+            EXT -->|Index| ES
+            EXT -->|Update Status| PG
+            JOB -->|Emit Event| SSE_S[SSE Stream Server]
+        end
     end
 
-    subgraph "Capa de Infraestructura"
-        E[PostgreSQL 16] -->|JDBC / Hibernate Panache| F[Document Entity]
-        G[Elasticsearch 8.x] -->|Full-Text Search| F
-        H[Quarkus EventBus] -->|Async Processing| F
-        I[Docker Compose] -->|Levanta servicios| E & G
-    end
-
-    style Clean fill:#f8f9fa,stroke:#dee2e6,stroke-width:2px
-    style Backend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    SSE_S -->|Push Event| SSE_C
+    
+    style FE fill:#e3f2fd,stroke:#1565c0,color:#000
+    style BE fill:#f1f8e9,stroke:#2e7d32,color:#000
+    style APP fill:#fffde7,stroke:#fbc02d,color:#000
+    style INF fill:#fce4ec,stroke:#c2185b,color:#000
 ```
 
 ---
@@ -140,13 +153,13 @@ sequenceDiagram
 | **Docker Compose** | ✅ Completado | 4 servicios (PG, ES, Backend, Frontend) healthy |
 | **Tests** | ✅ Completado | Unitarias (9 ES tests) + Integración (@QuarkusTest) |
 | **Documentación** | ⚠️ Parcial | architecture.md, ia.md ✅; README pendiente |
-| **Benchmark k6** | ⏳ Pendiente | Objetivo p95 < 1000ms |
+| **Benchmark k6** | ✅ Completado | p95 = 23.26ms (Objetivo < 1000ms) |
 
 ---
 
 ## 8. Próximos Pasos de Arquitectura
 
-1. [ ] Implementar benchmark k6 y medir latencias de búsqueda (objetivo p95 < 1000ms)
+- [x] Implementar benchmark k6 y medir latencias de búsqueda (objetivo p95 < 1000ms) ✅ (p95 = 23.26ms)
 2. [ ] Redactar README con instrucciones de setup, ejecución y variables de entorno
 3. [ ] (Opcional) Añadir métricas Prometheus/Grafana para observabilidad
 4. [ ] (Opcional) Implementar rate limiting y autenticación JWT

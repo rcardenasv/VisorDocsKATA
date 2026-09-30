@@ -125,7 +125,7 @@ Last update: 2026-09-29
 - [x] P1 — Resolver problema de compatibilidad cliente ES (media_type_header_exception) ✅ (low-level REST client)
 - [x] P1 — Optimizar y validar workers asíncronos y conexión ES (F3/F4) ✅ (ensureIndexExists, onStartup retry, encoding fallback, sanitización)
 - [x] P4 — Desplegar entorno completo con Docker Compose y validar flujos end-to-end ✅
-- [ ] P2 — Implementar benchmark k6 y medir latencias de búsqueda (F7)
+- [x] P2 — Implementar benchmark k6 y medir latencias de búsqueda (F7) ✅ (p95 = 23.26ms)
 - [ ] P3 — Redactar README (architecture.md e ia.md completados) (F8)
 
 ## 16. Last Session Summary

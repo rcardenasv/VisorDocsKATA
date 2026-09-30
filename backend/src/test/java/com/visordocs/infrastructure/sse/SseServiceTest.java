@@ -30,7 +30,9 @@ class SseServiceTest {
         Multi<DocumentStatusEvent> multi = sseService.subscribe("doc-1");
 
         CompletableFuture<DocumentStatusEvent> future = new CompletableFuture<>();
-        multi.subscribe().with(future::complete, Throwable::printStackTrace);
+        multi.subscribe().with(future::complete, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
 
         sseService.emitEvent(new DocumentStatusEvent("doc-1", "INDEXED", null));
 
@@ -45,7 +47,9 @@ class SseServiceTest {
         Multi<DocumentStatusEvent> multi = sseService.subscribe("doc-1");
 
         CompletableFuture<DocumentStatusEvent> future = new CompletableFuture<>();
-        multi.subscribe().with(future::complete, Throwable::printStackTrace);
+        multi.subscribe().with(future::complete, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
 
         // Emit for different documentId - should be filtered out
         sseService.emitEvent(new DocumentStatusEvent("doc-2", "INDEXED", null));
@@ -61,7 +65,9 @@ class SseServiceTest {
         Multi<DocumentStatusEvent> multi = sseService.subscribe("doc-1");
         java.util.concurrent.ConcurrentLinkedQueue<DocumentStatusEvent> received = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
-        multi.subscribe().with(received::add, Throwable::printStackTrace);
+        multi.subscribe().with(received::add, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
 
         sseService.emitEvent(new DocumentStatusEvent("doc-1", "INDEXED", null));
         sseService.emitEvent(new DocumentStatusEvent("doc-1", "ERROR", "failed"));
@@ -82,7 +88,9 @@ class SseServiceTest {
 
         Multi<DocumentStatusEvent> multi = sseService.subscribe("doc-1");
         CompletableFuture<DocumentStatusEvent> future = new CompletableFuture<>();
-        multi.subscribe().with(future::complete, Throwable::printStackTrace);
+        multi.subscribe().with(future::complete, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
 
         // Emit new event after subscription
         sseService.emitEvent(new DocumentStatusEvent("doc-1", "ERROR", "oops"));
@@ -100,8 +108,12 @@ class SseServiceTest {
         CompletableFuture<DocumentStatusEvent> future1 = new CompletableFuture<>();
         CompletableFuture<DocumentStatusEvent> future2 = new CompletableFuture<>();
 
-        multi1.subscribe().with(future1::complete, Throwable::printStackTrace);
-        multi2.subscribe().with(future2::complete, Throwable::printStackTrace);
+        multi1.subscribe().with(future1::complete, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
+        multi2.subscribe().with(future2::complete, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
 
         sseService.emitEvent(new DocumentStatusEvent("doc-1", "INDEXED", null));
 
@@ -117,7 +129,9 @@ class SseServiceTest {
         Multi<DocumentStatusEvent> multi = sseService.subscribe("doc-error");
 
         CompletableFuture<DocumentStatusEvent> future = new CompletableFuture<>();
-        multi.subscribe().with(future::complete, Throwable::printStackTrace);
+        multi.subscribe().with(future::complete, failure -> {
+            throw new AssertionError("Unexpected stream failure", failure);
+        });
 
         sseService.emitEvent(new DocumentStatusEvent("doc-error", "ERROR", "Connection timeout"));
 

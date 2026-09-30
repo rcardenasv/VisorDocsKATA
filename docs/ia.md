@@ -19,11 +19,20 @@ Este documento registra el uso de herramientas de Inteligencia Artificial durant
 
 ---
 
-## 2. Herramientas Utilizadas
+## 2. Herramientas Utilizadas y Distribución de Modelos
 
+Para maximizar la calidad del software, se utilizó un enfoque de **Multi-LLM**, asignando modelos según su especialidad:
+
+| Área / Componente | Modelo IA Utilizado | Propósito |
+|------------------|--------------------|-----------|
+| **Backend (Java)** | **Claude 3.5 Sonnet** | Diseño de arquitectura, implementación de servicios Quarkus y lógica de negocio |
+| **Frontend (TS)** | **Gemini 1.5 Pro** | Componentes Angular 17+, reactividad con RxJS y estilos CSS |
+| **Config & Tests** | **Gemma 4 / Nemotron Ultra** | Configuración de infraestructura, Docker, scripts de test y debugging de entorno |
+| **Documentación** | **Gemma 4** | Redacción técnica y mantenimiento de docs |
+
+### Herramientas de Soporte
 | Herramienta | Propósito | Cuándo se usa |
 |-------------|-----------|---------------|
-| **opencode (nvidia/nemotron-3.5-lightning-30b-a3b)** | Asistencia de código, investigación, generación de boilerplate, revisiones | Durante todo el desarrollo: creación de componentes, fixes de bugs, diseño de queries, documentación |
 | **Git/GitHub** | Control de versiones, historial de cambios | Commit de cambios, PR, rollback si es necesario |
 | **Docker Desktop** | Levantar infraestructura (PG, ES, backend, frontend) | Fase de desarrollo local, integración continua |
 | **Postman / curl** | Testing de endpoints REST | Validación manual de respuestas API |

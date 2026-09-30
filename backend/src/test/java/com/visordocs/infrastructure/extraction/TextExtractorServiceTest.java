@@ -237,6 +237,25 @@ class TextExtractorServiceTest {
     }
 
     @Test
+    void extract_nullFilePath_throwsValidationError() {
+        assertThatThrownBy(() -> extractor.extract(null, "txt"))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "VALIDATION_ERROR")
+                .hasMessageContaining("filePath must not be null");
+    }
+
+    @Test
+    void extract_nullFileType_throwsUnsupportedFileTypeError(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("test.txt");
+        Files.writeString(file, "content", StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> extractor.extract(file, null))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "UNSUPPORTED_FILE_TYPE")
+                .hasMessageContaining("File type 'null' is not supported");
+    }
+
+    @Test
     void extractMd_veryLongContent(@TempDir Path tempDir) throws IOException {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 1000; i++) {

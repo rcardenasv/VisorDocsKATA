@@ -4,7 +4,6 @@ import com.visordocs.infrastructure.search.ElasticsearchService;
 import com.visordocs.interfaces.dto.SearchResponse;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.InjectMock;
-import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
