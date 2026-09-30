@@ -33,6 +33,42 @@ services:
       timeout: 10s
       retries: 5
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: src/main/docker/Dockerfile.jvm
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/visordocs
+      DB_USER: ${DB_USER:-visordocs}
+      DB_PASSWORD: ${DB_PASSWORD:-visordocs_secret}
+      ELASTICSEARCH_URL: elasticsearch:9200
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-documents}
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+      PORT: 8080
+      ES_JAVA_CLIENT_COMPATIBILITY_MODE: "true"
+      JAVA_OPTS_APPEND: "-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
+    environment:
+      - API_URL=http://localhost:8080
+
 volumes:
   postgres_data:
   es_data:

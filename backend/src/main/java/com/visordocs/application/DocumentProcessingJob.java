@@ -54,6 +54,9 @@ public class DocumentProcessingJob {
             Path filePath = Path.of(uploadDir, document.id);
             String content = textExtractor.extract(filePath, document.fileType);
             
+            // Sanitize content to remove null bytes that PostgreSQL doesn't allow in UTF8
+            content = content.replace("\u0000", "");
+            
             // Save content to DB
             document.content = content;
             
@@ -75,10 +78,12 @@ public class DocumentProcessingJob {
         } catch (Exception e) {
             LOG.errorf(e, "Failed to process document: %s", documentId);
             document.status = DocumentStatus.ERROR;
-            document.errorMessage = e.getMessage();
+            // Sanitize error message to remove null bytes that PostgreSQL doesn't allow in UTF8
+            String sanitizedMessage = e.getMessage() != null ? e.getMessage().replace("\u0000", "") : "Unknown error";
+            document.errorMessage = sanitizedMessage;
             documentRepository.persist(document);
             
-            sseService.emitEvent(DocumentStatusEvent.error(document.id, e.getMessage()));
+            sseService.emitEvent(DocumentStatusEvent.error(document.id, sanitizedMessage));
         }
     }
 }

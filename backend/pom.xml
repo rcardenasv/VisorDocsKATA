@@ -22,6 +22,7 @@
         <failsafe-plugin.version>3.5.2</failsafe-plugin.version>
         <pdfbox.version>3.0.7</pdfbox.version>
         <flexmark.version>0.64.8</flexmark.version>
+        <quarkus.package.jar.type>legacy-jar</quarkus.package.jar.type>
     </properties>
 
     <dependencyManagement>
@@ -66,10 +67,21 @@
             <artifactId>quarkus-hibernate-validator</artifactId>
         </dependency>
 
-        <!-- Elasticsearch Java client -->
+        <!-- Elasticsearch Java client for indexing (high-level) -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-elasticsearch-java-client</artifactId>
+        </dependency>
+        <!-- Elasticsearch low-level REST client for search (avoids media_type_header_exception with ES 8.x) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-elasticsearch-rest-client</artifactId>
+        </dependency>
+        <!-- Explicit dependency for low-level REST client classes -->
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>8.13.0</version>
         </dependency>
 
         <!-- Vert.x EventBus (incluye Mutiny-Vert.x transitivamente) -->

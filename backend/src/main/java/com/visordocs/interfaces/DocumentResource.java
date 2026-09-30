@@ -82,6 +82,7 @@ public class DocumentResource {
         doc.status = DocumentStatus.PROCESSING;
 
         documentRepository.persist(doc);
+        documentRepository.flush();
 
         // Save file to disk
         try {

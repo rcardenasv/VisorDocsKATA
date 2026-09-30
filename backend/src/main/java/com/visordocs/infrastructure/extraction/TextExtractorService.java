@@ -38,7 +38,17 @@ public class TextExtractorService {
 
     private String extractTxt(Path filePath) {
         try {
-            return Files.readString(filePath, StandardCharsets.UTF_8);
+            String content = Files.readString(filePath, StandardCharsets.UTF_8);
+            // Remove null bytes that PostgreSQL doesn't allow in UTF8
+            return content.replace("\u0000", "");
+        } catch (java.nio.charset.MalformedInputException e) {
+            // Fallback to ISO-8859-1 for files with encoding issues
+            try {
+                String content = Files.readString(filePath, java.nio.charset.StandardCharsets.ISO_8859_1);
+                return content.replace("\u0000", "");
+            } catch (IOException e2) {
+                throw AppException.textExtractionError("Failed to read TXT file with fallback encoding", e2);
+            }
         } catch (IOException e) {
             throw AppException.textExtractionError("Failed to read TXT file", e);
         }

@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.visordocs.infrastructure.extraction.TextExtractorServiceTest
--------------------------------------------------------------------------------
-Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.813 s -- in com.visordocs.infrastructure.extraction.TextExtractorServiceTest
