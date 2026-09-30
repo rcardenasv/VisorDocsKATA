@@ -223,7 +223,7 @@ public class ElasticsearchService {
                 doc.put("title", title);
                 doc.put("author", author);
                 doc.put("category", category);
-                doc.put("tags", objectMapper.valueToTree(tags != null ? Arrays.asList(tags) : List.of()));
+                doc.set("tags", objectMapper.valueToTree(tags != null ? Arrays.asList(tags) : List.of()));
                 doc.put("version", version);
                 doc.put("content", content);
 
@@ -351,6 +351,10 @@ public class ElasticsearchService {
         if (lastException instanceof AppException ae) {
             throw ae;
         }
+        if (lastException == null) {
+            throw AppException.searchError(
+                    "Operation was not attempted because maxRetryAttempts is not positive", 500);
+        }
         throw AppException.searchError(
                 "Operation failed after " + maxRetryAttempts + " attempts: " + lastException.getMessage(),
                 lastException);
@@ -385,7 +389,7 @@ public class ElasticsearchService {
             List<String> highlights = new ArrayList<>();
             JsonNode highlight = hit.path("highlight");
             if (!highlight.isMissingNode()) {
-                highlight.fields().forEachRemaining(entry -> {
+                highlight.properties().forEach(entry -> {
                     entry.getValue().forEach(fragment -> highlights.add(fragment.asText()));
                 });
             }
@@ -422,7 +426,7 @@ public class ElasticsearchService {
 
     private List<HttpHost> parseHosts(String hostsConfig) {
         return Arrays.stream(hostsConfig.split(","))
-                .map(String::trim)
+                .map(host -> host.trim())
                 .filter(s -> !s.isEmpty())
                 .map(this::parseHost)
                 .collect(java.util.stream.Collectors.toList());

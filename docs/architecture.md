@@ -63,220 +63,133 @@ graph TD
 
 ```mermaid
 classDiagram
+    %% ==========================================
     %% DOMAIN LAYER
-    class Document {
-        +String id
-        +String title
-        +String author
-        +String category
-        +String[] tags
-        +String version
-        +String originalFileName
-        +String fileType
-        +Long fileSize
-        +String content
-        +DocumentStatus status
-        +String errorMessage
-        +Instant createdAt
-        +Instant updatedAt
-        +onPrePersist()
-        +onPreUpdate()
+    %% ==========================================
+    namespace DOMAIN {
+        class Document {
+            +String id
+            +String title
+            +DocumentStatus status
+            +String content
+            +onPrePersist()
+            +onPreUpdate()
+        }
+
+        class DocumentStatus {
+            <<enumeration>>
+            PROCESSING
+            INDEXED
+            ERROR
+        }
+
+        class AppException {
+            -String code
+            -int httpStatus
+            +validationError(String)$ AppException
+            +documentNotFound(String)$ AppException
+            +indexingError(String, Throwable)$ AppException
+        }
     }
-    
-    class DocumentStatus {
-        <<enumeration>>
-        PROCESSING
-        INDEXED
-        ERROR
-    }
-    
-    class AppException {
-        -String code
-        -int httpStatus
-        +getCode() String
-        +getHttpStatus() int
-        +validationError(String) AppException
-        +unsupportedFileType(String) AppException
-        +fileSizeExceeded(long) AppException
-        +documentNotFound(String) AppException
-        +textExtractionError(String, Throwable) AppException
-        +indexingError(String, Throwable) AppException
-        +searchError(String, Throwable) AppException
-        +internalError(String, Throwable) AppException
-    }
-    
-    Document --> DocumentStatus : status
-    
+
+    %% ==========================================
     %% APPLICATION LAYER
-    class DocumentProcessingJob {
-        -DocumentRepository documentRepository
-        -TextExtractorService textExtractor
-        -ElasticsearchService elasticsearchService
-        -SseService sseService
-        -String uploadDir
-        +processDocument(String) void
+    %% ==========================================
+    namespace APPLICATION {
+        class DocumentProcessingJob {
+            -DocumentRepository documentRepository
+            -TextExtractorService textExtractor
+            -ElasticsearchService elasticsearchService
+            -SseService sseService
+            +processDocument(String documentId) void
+        }
     }
-    
-    %% INFRASTRUCTURE - PERSISTENCE
-    class DocumentRepository {
-        <<interface>>
-        +persist(Document) void
-        +findById(String) Document
-        +flush() void
-        +listAll() List~Document~
+
+    %% ==========================================
+    %% INFRASTRUCTURE LAYER
+    %% ==========================================
+    namespace INFRASTRUCTURE {
+        class DocumentRepository {
+            <<interface>>
+            +persist(Document) void
+            +findById(String) Document
+            +listAll() List~Document~
+        }
+
+        class PanacheRepositoryBase {
+            <<framework>>
+        }
+
+        class ElasticsearchService {
+            +indexDocument(...) void
+            +search(String, int, int) SearchResponse
+        }
+
+        class TextExtractorService {
+            +extract(Path, String) String
+        }
+
+        class SseService {
+            +emitEvent(DocumentStatusEvent) void
+            +subscribe(String) Multi~DocumentStatusEvent~
+        }
     }
-    
-    class PanacheRepositoryBase {
-        <<Panache Repository>>
+
+    %% ==========================================
+    %% REST / PRESENTATION LAYER (RESOURCES & DTOs)
+    %% ==========================================
+    namespace REST_API {
+        class DocumentResource {
+            +uploadDocument(...) Response
+            +getDocument(String) DocumentDetailResponse
+        }
+
+        class SearchResource {
+            +search(String, int, int) SearchResponse
+        }
+
+        class SseResource {
+            +streamEvents(String) Multi~DocumentStatusEvent~
+        }
+
+        class GlobalExceptionMapper {
+            +toResponse(AppException) Response
+        }
+
+        class DTOs_and_Events {
+            <<Data Transfer Objects>>
+            UploadResponse
+            DocumentDetailResponse
+            SearchResponse
+            DocumentStatusEvent
+        }
     }
-    
+
+    %% ==========================================
+    %% RELATIONSHIPS
+    %% ==========================================
+    %% Domain relations
+    Document --> DocumentStatus : status
+
+    %% Infrastructure implementation
     DocumentRepository ..|> PanacheRepositoryBase : implements
-    
-    %% INFRASTRUCTURE - SEARCH
-    class ElasticsearchService {
-        -ObjectMapper objectMapper
-        -String indexName
-        -RestClient lowLevelClient
-        -ExecutorService executor
-        -ScheduledExecutorService scheduler
-        +onStartup(StartupEvent) void
-        +ensureIndexExists() void
-        +indexDocument(String, String, String, String, String[], String, String) void
-        +search(String, int, int) SearchResponse
-        -ensureIndexExistsWithRetry() void
-        -createIndex() void
-        -indexExists() boolean
-        -parseSearchResponse(JsonNode, int, int) SearchResponse
-        -executeWithRetry(Supplier~T~) T
-        -parseHosts(String) List~HttpHost~
-        -parseHost(String) HttpHost
-        +close() void
-    }
-    
-    %% INFRASTRUCTURE - EXTRACTION
-    class TextExtractorService {
-        +extract(Path, String) String
-        -extractTxt(Path) String
-        -extractPdf(Path) String
-        -extractMarkdown(Path) String
-    }
-    
-    %% INFRASTRUCTURE - SSE
-    class SseService {
-        -BroadcastProcessor~DocumentStatusEvent~ processor
-        +emitEvent(DocumentStatusEvent) void
-        +subscribe(String) Multi~DocumentStatusEvent~
-    }
-    
-    %% INTERFACES - DTOs
-    class UploadResponse {
-        +String documentId
-        +String status
-    }
-    
-    class DocumentDetailResponse {
-        +String documentId
-        +String status
-        +DocumentMetadata metadata
-        +String content
-        +String originalFileName
-        +String fileType
-        +Instant createdAt
-        +Instant updatedAt
-        +String errorMessage
-    }
-    
-    class DocumentMetadata {
-        +String title
-        +String author
-        +String category
-        +String[] tags
-        +String version
-    }
-    
-    class SearchResponse {
-        +List~SearchResultItem~ items
-        +int page
-        +int pageSize
-        +long total
-    }
-    
-    class SearchResultItem {
-        +String documentId
-        +String title
-        +SearchMetadata metadata
-        +List~String~ highlight
-    }
-    
-    class SearchMetadata {
-        +String author
-        +String category
-        +String[] tags
-        +String version
-    }
-    
-    class DocumentStatusEvent {
-        +String documentId
-        +String status
-        +String errorMessage
-        +indexed(String) DocumentStatusEvent
-        +error(String, String) DocumentStatusEvent
-    }
-    
-    class ErrorResponse {
-        +Error error
-    }
-    
-    class Error {
-        +String code
-        +String message
-        +String correlationId
-    }
-    
-    %% INTERFACES - RESOURCES
-    class DocumentResource {
-        -DocumentRepository documentRepository
-        -EventBus eventBus
-        -String uploadDir
-        -long maxSizeMb
-        -List~String~ allowedExtensions
-        +uploadDocument(FileUpload, String, String, String, String, String) Response
-        +getDocument(String) DocumentDetailResponse
-        +getDocumentContent(String) Response
-    }
-    
-    class SearchResource {
-        -ElasticsearchService elasticsearchService
-        +search(String, int, int) SearchResponse
-    }
-    
-    class SseResource {
-        -SseService sseService
-        +streamEvents(String) Multi~DocumentStatusEvent~
-    }
-    
-    class GlobalExceptionMapper {
-        +toResponse(AppException) Response
-    }
-    
-    %% RELATIONS
-    DocumentProcessingJob --> DocumentRepository : uses
-    DocumentProcessingJob --> TextExtractorService : uses
-    DocumentProcessingJob --> ElasticsearchService : uses
-    DocumentProcessingJob --> SseService : uses
-    
-    DocumentResource --> DocumentRepository : uses
-    DocumentResource --> EventBus : publishes to
-    DocumentResource --> Document : creates
-    
-    SearchResource --> ElasticsearchService : uses
-    
-    SseResource --> SseService : uses
-    
-    GlobalExceptionMapper --> AppException : maps
-    
-    ElasticsearchService --> AppException : throws
-    TextExtractorService --> AppException : throws
+
+    %% REST to Infrastructure / Application
+    DocumentResource ..> DocumentRepository : uses
+    DocumentResource ..> Document : creates
+    SearchResource ..> ElasticsearchService : uses
+    SseResource ..> SseService : uses
+    GlobalExceptionMapper ..> AppException : maps
+
+    %% Application / Job Orchestration
+    DocumentProcessingJob ..> DocumentRepository : uses
+    DocumentProcessingJob ..> TextExtractorService : uses
+    DocumentProcessingJob ..> ElasticsearchService : uses
+    DocumentProcessingJob ..> SseService : uses
+
+    %% Exception throws
+    ElasticsearchService ..> AppException : throws
+    TextExtractorService ..> AppException : throws
 ```
 
 ### 3.2 Diagrama de Secuencia - Carga y Procesamiento
@@ -287,6 +200,7 @@ sequenceDiagram
     participant Client as Cliente (Angular)
     participant DocRes as DocumentResource
     participant PG as PostgreSQL
+    participant Disco as Almacenamiento Local
     participant EventBus as Quarkus EventBus
     participant ProcJob as DocumentProcessingJob
     participant Extractor as TextExtractorService
@@ -296,22 +210,23 @@ sequenceDiagram
     Client->>DocRes: POST /api/documents (multipart)
     DocRes->>DocRes: Validar archivo (ext, MIME, tamaño)
     DocRes->>PG: Persistir Document{status=PROCESSING}
-    DocRes->>PG: flush()  %% Forzar visibilidad inmediata
+    DocRes->>PG: flush()
     DocRes->>Disco: Guardar archivo en uploads/{id}
     DocRes->>EventBus: publish("document.process", docId)
     DocRes-->>Client: 202 Accepted {documentId, status: PROCESSING}
     
-    par Procesamiento Asíncrono
-        EventBus->>ProcJob: @ConsumeEvent("document.process")
-        ProcJob->>Extractor: extract(filePath, fileType)
-        Extractor-->>ProcJob: contenido extraído (texto plano)
-        ProcJob->>ProcJob: Sanitizar null bytes (\u0000)
+    EventBus->>ProcJob: @ConsumeEvent("document.process")
+    ProcJob->>Extractor: extract(filePath, fileType)
+    Extractor-->>ProcJob: contenido extraído (texto plano)
+    ProcJob->>ProcJob: Sanitizar null bytes (\u0000)
+    
+    alt Procesamiento Exitoso
         ProcJob->>PG: UPDATE Document SET content=..., updatedAt=now()
         ProcJob->>ES: ensureIndexExists() (idempotente)
         ProcJob->>ES: indexDocument(docId, title, author, category, tags, version, content)
         ProcJob->>PG: UPDATE status=INDEXED
         ProcJob->>SSE: emitEvent(DocumentStatusEvent.indexed(docId))
-    or Error Handling
+    else Error en Procesamiento
         ProcJob->>PG: UPDATE status=ERROR, errorMessage=sanitized
         ProcJob->>SSE: emitEvent(DocumentStatusEvent.error(docId, msg))
     end
@@ -334,7 +249,7 @@ sequenceDiagram
     SearchRes->>ESSvc: search("arquitectura", 0, 20)
     
     ESSvc->>ESSvc: Construir query multi_match + highlighting
-    Note right of ESSvc: Query DSL:\n{\n  "multi_match": {\n    "query": "arquitectura",\n    "fields": ["title^3", "author^2", "content", "tags"]\n  },\n  "highlight": {\n    "pre_tags": ["<mark>"],\n    "post_tags": ["</mark>"],\n    "fields": {\n      "title": {"number_of_fragments": 1},\n      "content": {"fragment_size": 150, "number_of_fragments": 3}\n    }\n  },\n  "from": 0, "size": 20\n}
+    Note right of ESSvc: Query DSL:<br/>multi_match: "arquitectura"<br/>fields: ["title^3", "author^2", "content", "tags"]<br/>highlight: title, content<br/>from: 0, size: 20
     
     ESSvc->>ES: POST /documents/_search (low-level REST client)
     ES-->>ESSvc: JSON response con hits + highlights
@@ -376,254 +291,168 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph APP [App Module - Standalone]
+    subgraph CONFIG [Configuración Principal]
         direction TB
-        Routes[Router<br/>provideRouter]
-        Http[HttpClient<br/>provideHttpClient(withFetch)]
-        ErrorHandler[ErrorHandler<br/>provideBrowserGlobalErrorListeners]
-        
-        Routes --> SearchFeature
-        Routes --> UploadFeature
-        Routes --> ViewerFeature
+        Enrutador["Enrutador Principal<br/>(Router)"]
+        ClienteHttp["Cliente HTTP<br/>(HttpClient)"]
     end
-    
-    subgraph CORE [Core - Servicios Singleton]
+
+    subgraph VISTAS [Vistas y Páginas]
         direction TB
-        DocSvc[DocumentService<br/>HTTP /api/documents]
-        SearchSvc[SearchService<br/>HTTP /api/documents/search]
-        SseSvc[SseService<br/>EventSource /api/events]
-        ToastSvc[ToastService<br/>Notificaciones globales]
+        VistaBusqueda["Vista de Búsqueda<br/>(Inicio)"]
+        VistaCarga["Vista de Carga<br/>(Subir documento)"]
+        VistaVisor["Visor de Documentos<br/>(Detalle)"]
     end
-    
-    subgraph MODELS [Core Models - Interfaces TS]
+
+    subgraph SERVICIOS [Servicios Generales]
         direction TB
-        UploadResp[UploadResponse]
-        DocStatusEvt[DocumentStatusEvent]
-        DocMeta[DocumentMetadata]
-        DocDetail[DocumentDetail]
-        SearchItem[SearchItem]
-        SearchResp[SearchResponse]
+        SvcDocumento["Servicio de Documentos"]
+        SvcBusqueda["Servicio de Búsqueda"]
+        SvcEventos["Servicio de Eventos (SSE)"]
+        SvcNotificaciones["Servicio de Notificaciones"]
     end
-    
-    subgraph FEATURES [Feature Modules - Lazy Loaded]
+
+    subgraph COMPARTIDOS [Componentes Comunes]
         direction TB
-        SearchFeature[SearchComponent<br/>path: '' (home)]
-        UploadFeature[UploadComponent<br/>path: 'upload']
-        ViewerFeature[ViewerComponent<br/>path: 'documents/:id']
+        CompBarra["Barra de Navegación"]
+        CompToast["Notificaciones Emergentes"]
     end
-    
-    subgraph SHARED [Shared Components]
-        direction TB
-        ToastComp[ToastComponent<br/>Global notifications]
-        NavbarComp[NavbarComponent<br/>Navigation header]
+
+    subgraph MODELOS [Modelos de Datos]
+        DocModelos["Interfaces y DTOs<br/>(Documentos, Búsqueda, Eventos)"]
     end
-    
-    %% Service dependencies
-    SearchFeature --> SearchSvc
-    SearchFeature --> DocSvc
-    SearchFeature --> SseSvc
-    SearchFeature --> ToastSvc
-    
-    UploadFeature --> DocSvc
-    UploadFeature --> SseSvc
-    UploadFeature --> ToastSvc
-    UploadFeature --> Router
-    
-    ViewerFeature --> DocSvc
-    ViewerFeature --> Router
-    ViewerFeature --> DomSanitizer
-    
-    %% Model usage
-    DocSvc --> UploadResp
-    DocSvc --> DocDetail
-    SearchSvc --> SearchResp
-    SseSvc --> DocStatusEvt
-    UploadFeature --> UploadResp
-    UploadFeature --> DocStatusEvt
-    SearchFeature --> SearchResp
-    SearchFeature --> SearchItem
-    ViewerFeature --> DocDetail
-    ViewerFeature --> DocStatusEvt
-    
-    %% Shared
-    App --> ToastComp
-    App --> NavbarComp
-    
-    style APP fill:#e8f5e9,stroke:#2e7d32,color:#000
-    style CORE fill:#fff3e0,stroke:#ef6c00,color:#000
-    style MODELS fill:#fce4ec,stroke:#c2185b,color:#000
-    style FEATURES fill:#e3f2fd,stroke:#1565c0,color:#000
-    style SHARED fill:#f3e5f5,stroke:#7b1fa2,color:#000
+
+    %% Navegación
+    Enrutador --> VistaBusqueda
+    Enrutador --> VistaCarga
+    Enrutador --> VistaVisor
+    Enrutador --> CompBarra
+
+    %% Relaciones Vistas -> Servicios
+    VistaBusqueda --> SvcBusqueda
+    VistaBusqueda --> SvcDocumento
+
+    VistaCarga --> SvcDocumento
+    VistaCarga --> SvcEventos
+
+    VistaVisor --> SvcDocumento
+
+    %% Servicios -> Modelos
+    SERVICIOS --> DocModelos
+    COMPARTIDOS --> SvcNotificaciones
+
+    %% Estilos por bloque
+    style CONFIG fill:#e8f5e9,stroke:#2e7d32,color:#000
+    style VISTAS fill:#e3f2fd,stroke:#1565c0,color:#000
+    style SERVICIOS fill:#fff3e0,stroke:#ef6c00,color:#000
+    style COMPARTIDOS fill:#f3e5f5,stroke:#7b1fa2,color:#000
+    style MODELOS fill:#fce4ec,stroke:#c2185b,color:#000
 ```
 
 ### 4.2 Diagrama de Clases - Servicios y Modelos (TypeScript)
 
 ```mermaid
 classDiagram
-    %% CORE MODELS
-    class UploadResponse {
-        +documentId: string
-        +status: string
+    %% ==========================================
+    %% CAPA DE MODELOS / DATOS
+    %% ==========================================
+    namespace MODELOS {
+        class MetadatosDocumento {
+            +titulo: string
+            +autor: string
+            +categoria: string
+            +etiquetas: string[]
+        }
+
+        class DetalleDocumento {
+            +idDocumento: string
+            +estado: string
+            +contenido: string
+            +metadatos: MetadatosDocumento
+        }
+
+        class EventoEstado {
+            +idDocumento: string
+            +estado: string
+            +mensajeError: string
+        }
+
+        class RespuestaBusqueda {
+            +elementos: ItemBusqueda[]
+            +total: number
+            +pagina: number
+        }
     }
-    
-    class DocumentStatusEvent {
-        +documentId: string
-        +status: 'PROCESSING' | 'INDEXED' | 'ERROR'
-        +errorMessage?: string
+
+    %% ==========================================
+    %% CAPA DE SERVICIOS
+    %% ==========================================
+    namespace SERVICIOS {
+        class ServicioDocumentos {
+            +subirDocumento(archivo): Observable
+            +obtenerDocumento(id): Observable
+        }
+
+        class ServicioBusqueda {
+            +buscar(termino, pagina): Observable
+        }
+
+        class ServicioEventosSSE {
+            +escucharEventos(id): Observable
+        }
+
+        class ServicioNotificaciones {
+            +exito(mensaje)
+            +error(mensaje)
+        }
     }
-    
-    class DocumentMetadata {
-        +title: string
-        +author: string
-        +category: string
-        +tags: string[]
-        +version: string
+
+    %% ==========================================
+    %% CAPA DE COMPONENTES (VISTAS)
+    %% ==========================================
+    namespace COMPONENTES {
+        class ComponenteCarga {
+            +formularioCarga: FormGroup
+            +subir(): void
+        }
+
+        class ComponenteBusqueda {
+            +controlBusqueda: FormControl
+            +buscar(): void
+            +verDocumento(id): void
+        }
+
+        class ComponenteVisor {
+            +documento: Signal
+            +regresar(): void
+        }
+
+        class ComponenteNotificaciones {
+            +notificaciones: Signal
+        }
     }
-    
-    class DocumentDetail {
-        +documentId: string
-        +status: 'PROCESSING' | 'INDEXED' | 'ERROR'
-        +metadata: DocumentMetadata
-        +content: string
-        +originalFileName: string
-        +fileType: string
-        +createdAt: string
-        +updatedAt: string
-        +errorMessage?: string
-    }
-    
-    class SearchItem {
-        +documentId: string
-        +title: string
-        +metadata: DocumentMetadata
-        +highlight: string[]
-    }
-    
-    class SearchResponse {
-        +items: SearchItem[]
-        +page: number
-        +pageSize: number
-        +total: number
-    }
-    
-    DocumentDetail --> DocumentMetadata : contains
-    SearchItem --> DocumentMetadata : contains
-    SearchResponse --> SearchItem : contains
-    
-    %% CORE SERVICES
-    class DocumentService {
-        -HttpClient http
-        -string baseUrl = '/api/documents'
-        +uploadDocument(FormData): Observable~UploadResponse~
-        +getDocument(string): Observable~DocumentDetail~
-    }
-    
-    class SearchService {
-        -HttpClient http
-        -string baseUrl = '/api/documents/search'
-        +searchDocuments(string, number, number): Observable~SearchResponse~
-    }
-    
-    class SseService {
-        +observeDocument(string): Observable~DocumentStatusEvent~
-        -EventSource source
-    }
-    
-    class ToastService {
-        -signal toasts
-        +success(string) void
-        +error(string) void
-        +info(string) void
-        +clear() void
-    }
-    
-    %% FEATURE COMPONENTS
-    class UploadComponent {
-        -FormBuilder fb
-        -DocumentService documentService
-        -SseService sseService
-        -ToastService toastService
-        -Router router
-        +FormGroup uploadForm
-        +Signal~File~ selectedFile
-        +Signal~string~ fileError
-        +Signal~boolean~ isUploading
-        +Signal~boolean~ isDragging
-        +Signal~Status~ uploadStatus
-        -Subscription sseSub
-        +onDragOver(DragEvent) void
-        +onDrop(DragEvent) void
-        +onFileSelected(Event) void
-        +setFile(File) void
-        +removeFile(Event) void
-        +onSubmit() void
-        -subscribeToSse(string) void
-        +getFileIcon(string) string
-        +formatSize(number) string
-    }
-    
-    class SearchComponent {
-        -SearchService searchService
-        -Router router
-        -DomSanitizer sanitizer
-        +FormControl searchControl
-        +Signal~SearchResponse~ response
-        +Signal~boolean~ isLoading
-        +Signal~string~ error
-        +Signal~number~ currentPage
-        -Subject~void~ destroy$
-        +doSearch(string) void
-        +changePage(number) void
-        +goToDocument(string) void
-        +sanitize(string) SafeHtml
-        +safeHighlight(string) SafeHtml
-        +ngOnDestroy() void
-    }
-    
-    class ViewerComponent {
-        -ActivatedRoute route
-        -Router router
-        -DocumentService documentService
-        -DomSanitizer sanitizer
-        +Signal~DocumentDetail~ document
-        +Signal~boolean~ isLoading
-        +Signal~string~ error
-        +Signal~SafeResourceUrl~ pdfUrl
-        +Signal~string~ renderedMarkdown
-        +ngOnInit() void
-        +goBack() void
-        +getStatusIcon(string) string
-        -renderMarkdown(string) string
-    }
-    
-    class ToastComponent {
-        -ToastService toastService
-        +Signal~Toast[]~ toasts
-    }
-    
-    class NavbarComponent {
-        -Router router
-    }
-    
-    %% SERVICE DEPENDENCIES
-    UploadComponent --> DocumentService : uses
-    UploadComponent --> SseService : uses
-    UploadComponent --> ToastService : uses
-    UploadComponent --> Router : navigates
-    
-    SearchComponent --> SearchService : uses
-    SearchComponent --> Router : navigates
-    SearchComponent --> DomSanitizer : sanitizes highlights
-    
-    ViewerComponent --> DocumentService : uses
-    ViewerComponent --> Router : navigates
-    ViewerComponent --> DomSanitizer : bypassSecurityTrust
-    
-    ToastComponent --> ToastService : consumes
-    
-    DocumentService --> HttpClient : injects
-    SearchService --> HttpClient : injects
-    SseService --> EventSource : native browser API
+
+    %% ==========================================
+    %% RELACIONES
+    %% ==========================================
+    %% Relaciones entre modelos
+    DetalleDocumento --> MetadatosDocumento : contiene
+
+    %% Componentes usan Servicios
+    ComponenteCarga ..> ServicioDocumentos : usa
+    ComponenteCarga ..> ServicioEventosSSE : escucha
+    ComponenteCarga ..> ServicioNotificaciones : notifica
+
+    ComponenteBusqueda ..> ServicioBusqueda : usa
+
+    ComponenteVisor ..> ServicioDocumentos : usa
+
+    ComponenteNotificaciones ..> ServicioNotificaciones : consume
+
+    %% Servicios retornan Modelos
+    ServicioDocumentos ..> DetalleDocumento : retorna
+    ServicioBusqueda ..> RespuestaBusqueda : retorna
+    ServicioEventosSSE ..> EventoEstado : emite
 ```
 
 ### 4.3 Diagrama de Secuencia - Flujo de Carga (Upload)
@@ -741,56 +570,71 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
-    
-    state UploadComponent {
-        Idle --> Validating : onSubmit()
-        Validating --> Uploading : form valid + file selected
-        Validating --> Idle : form invalid
+    %% ==========================================
+    %% COMPONENTE DE CARGA
+    %% ==========================================
+    state ComponenteCarga {
+        [*] --> EnReposo
         
-        Uploading --> Processing : 202 response received
-        Uploading --> Error : HTTP error
+        EnReposo --> Validando : Enviar formulario
+        Validando --> EnReposo : Formulario inválido
+        Validando --> Subiendo : Formulario válido
         
-        Processing --> Indexed : SSE event status=INDEXED
-        Processing --> Error : SSE event status=ERROR
-        Processing --> Error : SSE connection error
+        Subiendo --> Procesando : Respuesta HTTP 202
+        Subiendo --> ErrorCarga : Error HTTP
         
-        Indexed --> Navigating : setTimeout 1.5s
-        Navigating --> [*] : router.navigate()
+        Procesando --> Indexado : Evento SSE (INDEXADO)
+        Procesando --> ErrorCarga : Evento SSE (ERROR) / Fallo red
         
-        Error --> Idle : User dismisses / retries
+        Indexado --> Navegando : Esperar 1.5s
+        Navegando --> [*] : Redirigir a detalle
+        
+        ErrorCarga --> EnReposo : Reintentar / Descartar
     }
-    
-    state SearchComponent {
-        [*] --> Empty
-        Empty --> Searching : query.length > 0 (debounced)
-        Searching --> Results : response received
-        Searching --> Error : HTTP error
-        Searching --> Empty : query cleared
+
+    %% ==========================================
+    %% COMPONENTE DE BÚSQUEDA
+    %% ==========================================
+    state ComponenteBusqueda {
+        [*] --> Vacio
         
-        Results --> Searching : query changes / page changes
-        Results --> Empty : query cleared
-        Error --> Searching : retry / new query
-    }
-    
-    state ViewerComponent {
-        [*] --> Loading : ngOnInit()
-        Loading --> Processing : status=PROCESSING
-        Loading --> ErrorView : HTTP error / status=ERROR
-        Loading --> Rendered : status=INDEXED
+        Vacio --> Buscando : Ingresar texto
+        Buscando --> Vacio : Limpiar búsqueda
+        Buscando --> ErrorBusqueda : Error de red
+        Buscando --> ConResultados : Respuesta recibida
         
-        Rendered --> [*] : goBack()
-        ErrorView --> [*] : goBack()
-        Processing --> Rendered : Poll/refresh (manual)
+        ConResultados --> Buscando : Cambiar texto o página
+        ConResultados --> Vacio : Limpiar búsqueda
+        
+        ErrorBusqueda --> Buscando : Reintentar / Nueva búsqueda
     }
-    
-    state SseConnection {
-        [*] --> Connecting : observeDocument(id)
-        Connecting --> Open : EventSource.onopen
-        Open --> Receiving : EventSource.onmessage
-        Receiving --> Open : Next event
-        Open --> Closed : EventSource.onerror / unsubscribe
-        Closed --> [*] : source.close()
+
+    %% ==========================================
+    %% COMPONENTE VISOR
+    %% ==========================================
+    state ComponenteVisor {
+        [*] --> CargandoVista
+        
+        CargandoVista --> EnProceso : Estado PROCESSING
+        CargandoVista --> Renderizado : Estado INDEXED
+        CargandoVista --> ErrorVisor : Error HTTP o ERROR
+        
+        EnProceso --> Renderizado : Actualización manual
+        
+        Renderizado --> [*] : Regresar
+        ErrorVisor --> [*] : Regresar
+    }
+
+    %% ==========================================
+    %% CONEXIÓN EVENTOS SSE
+    %% ==========================================
+    state ConexionEventos {
+        [*] --> Conectando : Iniciar escucha
+        Conectando --> Abierta : Conexión exitosa
+        Abierta --> Recibiendo : Mensaje recibido
+        Recibiendo --> Abierta : Esperar siguiente evento
+        Abierta --> Cerrada : Error / Cancelar suscripción
+        Cerrada --> [*] : Cerrar canal
     }
 ```
 

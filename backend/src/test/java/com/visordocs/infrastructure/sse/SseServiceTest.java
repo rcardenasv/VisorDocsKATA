@@ -77,8 +77,8 @@ class SseServiceTest {
         awaitUntil(() -> received.size() >= 2, 1000);
 
         assertThat(received).hasSize(2);
-        assertThat(received).extracting(DocumentStatusEvent::documentId).containsOnly("doc-1");
-        assertThat(received).extracting(DocumentStatusEvent::status).containsExactly("INDEXED", "ERROR");
+        assertThat(received).extracting((DocumentStatusEvent event) -> event.documentId()).containsOnly("doc-1");
+        assertThat(received).extracting((DocumentStatusEvent event) -> event.status()).containsExactly("INDEXED", "ERROR");
     }
 
     @Test

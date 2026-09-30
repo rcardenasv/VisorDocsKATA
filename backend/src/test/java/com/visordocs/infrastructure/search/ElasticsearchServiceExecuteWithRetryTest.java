@@ -2,16 +2,13 @@ package com.visordocs.infrastructure.search;
 
 import com.visordocs.domain.AppException;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class ElasticsearchServiceExecuteWithRetryTest {
 
     @Test
@@ -20,12 +17,15 @@ class ElasticsearchServiceExecuteWithRetryTest {
         setField(real, "maxRetryAttempts", 3);
         setField(real, "retryDelayMs", 1);
 
-        Supplier<String> op = mock(Supplier.class);
-        when(op.get()).thenReturn("success");
+        AtomicInteger calls = new AtomicInteger();
+        Supplier<String> op = () -> {
+            calls.incrementAndGet();
+            return "success";
+        };
 
         String result = invokeExecuteWithRetry(real, op);
         assertThat(result).isEqualTo("success");
-        verify(op, times(1)).get();
+        assertThat(calls).hasValue(1);
     }
 
     @Test
@@ -34,15 +34,17 @@ class ElasticsearchServiceExecuteWithRetryTest {
         setField(real, "maxRetryAttempts", 3);
         setField(real, "retryDelayMs", 1);
 
-        Supplier<String> op = mock(Supplier.class);
-        when(op.get())
-                .thenThrow(new RuntimeException("fail"))
-                .thenThrow(new RuntimeException("fail"))
-                .thenReturn("success");
+        AtomicInteger calls = new AtomicInteger();
+        Supplier<String> op = () -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new RuntimeException("fail");
+            }
+            return "success";
+        };
 
         String result = invokeExecuteWithRetry(real, op);
         assertThat(result).isEqualTo("success");
-        verify(op, times(3)).get();
+        assertThat(calls).hasValue(3);
     }
 
     @Test
@@ -51,13 +53,35 @@ class ElasticsearchServiceExecuteWithRetryTest {
         setField(real, "maxRetryAttempts", 3);
         setField(real, "retryDelayMs", 1);
 
-        Supplier<String> op = mock(Supplier.class);
-        when(op.get()).thenThrow(AppException.validationError("client error"));
+        AtomicInteger calls = new AtomicInteger();
+        Supplier<String> op = () -> {
+            calls.incrementAndGet();
+            throw AppException.validationError("client error");
+        };
 
         Throwable thrown = catchThrowable(() -> invokeExecuteWithRetry(real, op));
         assertThat(thrown).isInstanceOf(AppException.class);
         assertThat(thrown).hasFieldOrPropertyWithValue("code", "VALIDATION_ERROR");
-        verify(op, times(1)).get();
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void executeWithRetry_zeroAttempts_throwsSearchErrorWithoutRunningOperation() throws Throwable {
+        ElasticsearchService real = new ElasticsearchService();
+        setField(real, "maxRetryAttempts", 0);
+
+        AtomicInteger calls = new AtomicInteger();
+        Supplier<String> op = () -> {
+            calls.incrementAndGet();
+            return "unexpected";
+        };
+
+        Throwable thrown = catchThrowable(() -> invokeExecuteWithRetry(real, op));
+
+        assertThat(thrown).isInstanceOf(AppException.class);
+        assertThat(thrown).hasFieldOrPropertyWithValue("code", "SEARCH_ERROR");
+        assertThat(thrown).hasMessageContaining("maxRetryAttempts is not positive");
+        assertThat(calls).hasValue(0);
     }
 
     private void setField(Object target, String name, Object value) throws Throwable {
@@ -67,12 +91,6 @@ class ElasticsearchServiceExecuteWithRetryTest {
     }
 
     private <T> T invokeExecuteWithRetry(ElasticsearchService service, Supplier<T> op) throws Throwable {
-        java.lang.reflect.Method m = ElasticsearchService.class.getDeclaredMethod("executeWithRetry", Supplier.class);
-        m.setAccessible(true);
-        try {
-            return (T) m.invoke(service, op);
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            throw e.getCause();
-        }
+        return service.executeWithRetry(op);
     }
 }
