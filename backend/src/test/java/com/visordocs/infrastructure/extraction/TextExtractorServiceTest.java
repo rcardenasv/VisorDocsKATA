@@ -256,6 +256,78 @@ class TextExtractorServiceTest {
     }
 
     @Test
+    void extract_emptyStringFileType_throwsUnsupportedFileTypeError(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("test.txt");
+        Files.writeString(file, "content", StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> extractor.extract(file, ""))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "UNSUPPORTED_FILE_TYPE")
+                .hasMessageContaining("File type '' is not supported");
+    }
+
+    @Test
+    void extract_mixedCaseFileType_normalizesType(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("mixed.pdf");
+        createSimplePdf(file, "Normalized text");
+
+        String result = extractor.extract(file, "Pdf");
+
+        assertThat(result).contains("Normalized text");
+    }
+
+    @Test
+    void extractMd_removesFormattingButKeepsReadableText(@TempDir Path tempDir) throws IOException {
+        String markdown = """
+                # Project plan
+                
+                - first item
+                - second item
+                
+                > important note
+                
+                [Java docs](https://example.com/java)
+                
+                ```java
+                System.out.println(\"hello\");
+                ```
+                """;
+        Path file = tempDir.resolve("plan.md");
+        Files.writeString(file, markdown, StandardCharsets.UTF_8);
+
+        String result = extractor.extract(file, "md");
+
+        assertThat(result).contains("Project plan").contains("first item").contains("second item")
+                .contains("important note").contains("Java docs");
+        assertThat(result).doesNotContain("# ").doesNotContain("- ").doesNotContain("> ")
+                .doesNotContain("https://example.com/java")
+                .doesNotContain("```java");
+    }
+
+    @Test
+    void extractPdf_whitespaceOnlyText_throwsTextExtractionError(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("whitespace.pdf");
+        try (var document = new org.apache.pdfbox.pdmodel.PDDocument()) {
+            var page = new org.apache.pdfbox.pdmodel.PDPage();
+            document.addPage(page);
+            try (var cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(document, page)) {
+                cs.beginText();
+                cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(
+                        org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+                cs.newLineAtOffset(50, 700);
+                cs.showText("   ");
+                cs.endText();
+            }
+            document.save(file.toFile());
+        }
+
+        assertThatThrownBy(() -> extractor.extract(file, "pdf"))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "TEXT_EXTRACTION_ERROR")
+                .hasMessageContaining("PDF contains no extractable text");
+    }
+
+    @Test
     void extractMd_veryLongContent(@TempDir Path tempDir) throws IOException {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 1000; i++) {

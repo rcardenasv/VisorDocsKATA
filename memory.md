@@ -26,7 +26,7 @@ Estado de las fases:
 - F5: DONE (Frontend: upload con SSE, search, viewer - todas las rutas operativas en localhost:4200)
 - F6: DONE (SSE backend + Angular: eventos emitidos al cambiar estado INDEXED/ERROR)
 - F7: IN PROGRESS (Calidad: unit tests, integration tests, benchmark)
-- F8: DONE (Documentación: architecture.md, ia.md creados; README pendiente)
+- F8: DONE (Documentación: architecture.md, ia.md, README.md completados)
 
 ## 4. Architecture Decisions
 | Decisión | Justificación | Fecha |
@@ -99,20 +99,20 @@ Status: IMPLEMENTED ✅
   - `DocumentProcessingJobTest`, `SearchResourceTest`, `DocumentResourceIntegrationTest`, `SearchResourceIntegrationTest`, `SseResourceTest`, `GlobalExceptionMapperTest`, `TextExtractorServiceTest`, `AppExceptionTest`, `DocumentStatusEventTest`, `SseServiceTest` ✅
   - Cobertura objetivo >= 80% (estructura lista, tests pasan)
 - **Integración**: `DocumentResourceIntegrationTest`, `SearchResourceIntegrationTest` con `@QuarkusTest` + `@InjectMock` ✅ (conectan a ES real via test profile)
-- **Rendimiento**: Pendientes (benchmark k6 objetivo p95 < 1000ms)
+- **Rendimiento**: Benchmark k6 ejecutado localmente (p95 = 23.26ms) ✅; pendiente ejecutar en entorno Docker Compose para validación oficial
 
 ## 11. Performance Memory
 - **Objetivo Búsqueda**: p95 < 1000 ms en GET /api/documents/search.
-- Estado: UNKNOWN (Sin métricas aún).
+- **Estado**: LOCAL BENCHMARK COMPLETED — p95 = 23.26ms (objetivo cumplido); pendiente validación en Docker Compose
 
 ## 12. Known Issues
 ### ISSUE-001 — Herramientas de entorno no instaladas (Docker, Maven)
-Status: OPEN
-Severity: CRITICAL
-Description: El entorno local en Windows no tiene instalado ni `mvn`, ni `docker`, ni `docker-compose` en el PATH.
-Impact: No se puede compilar el proyecto (falta `mvn` o `mvnw`) ni levantar la infraestructura local de dependencias como PostgreSQL o Elasticsearch.
-Possible solution: Instalar Docker Desktop (con esto podremos generar `mvnw` y correr dependencias) o instalar Maven/Postgres/ES nativamente en Windows.
-Last update: 2026-09-29
+Status: RESOLVED (entorno funcional — Docker Compose operativo, tests pasan)
+Severity: CRITICAL (was)
+Description: El entorno local en Windows no tenía instalado `mvn`, `docker`, `docker-compose` en el PATH.
+Impact: No se podía compilar ni levantar infraestructura local.
+Resolution: Entorno configurado (Docker Desktop + Maven wrapper o instalación local) — proyecto compila, tests pasan, Docker Compose levanta 4 servicios healthy.
+Last update: 2026-09-30
 
 ## 13. Failed Approaches
 *(Ninguno registrado)*
@@ -126,7 +126,9 @@ Last update: 2026-09-29
 - [x] P1 — Optimizar y validar workers asíncronos y conexión ES (F3/F4) ✅ (ensureIndexExists, onStartup retry, encoding fallback, sanitización)
 - [x] P4 — Desplegar entorno completo con Docker Compose y validar flujos end-to-end ✅
 - [x] P2 — Implementar benchmark k6 y medir latencias de búsqueda (F7) ✅ (p95 = 23.26ms)
-- [ ] P3 — Redactar README (architecture.md e ia.md completados) (F8)
+- [x] P3 — Redactar README (architecture.md, ia.md, README.md completados) (F8)
+- [ ] P4 — Ejecutar benchmark k6 en entorno Docker para confirmar p95 < 1000ms (F7)
+- [ ] P5 — Resolver ISSUE-001: Documentar setup entorno local (Docker Desktop / Maven wrapper)
 
 ## 16. Last Session Summary
 - Sistema completo desplegado y operativo en Docker Compose (4 servicios: PG, ES, Backend, Frontend)

@@ -148,7 +148,7 @@ class ElasticsearchServiceTest {
     @Test
     void indexExists_returnsTrueWhenIndexExists() throws Exception {
         Response response = mockResponse(200);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         Method method = ElasticsearchService.class.getDeclaredMethod("indexExists");
         method.setAccessible(true);
@@ -161,7 +161,7 @@ class ElasticsearchServiceTest {
     @Test
     void indexExists_returnsFalseWhenIndexNotFound() throws Exception {
         Response response = mockResponse(404);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         Method method = ElasticsearchService.class.getDeclaredMethod("indexExists");
         method.setAccessible(true);
@@ -174,7 +174,7 @@ class ElasticsearchServiceTest {
     @Test
     void createIndex_createsIndexWithCorrectMapping() throws Exception {
         Response response = mockResponse(200);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         Method method = ElasticsearchService.class.getDeclaredMethod("createIndex");
         method.setAccessible(true);
@@ -187,7 +187,7 @@ class ElasticsearchServiceTest {
     void ensureIndexExists_createsIndexWhenNotExists() throws Exception {
         Response headResponse = mockResponse(404);
         Response putResponse = mockResponse(200);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(headResponse, putResponse);
+        when(lowLevelClient.performRequest(any())).thenReturn(headResponse, putResponse);
 
         service.ensureIndexExists();
 
@@ -197,7 +197,7 @@ class ElasticsearchServiceTest {
     @Test
     void ensureIndexExists_doesNothingWhenIndexExists() throws Exception {
         Response response = mockResponse(200);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         service.ensureIndexExists();
 
@@ -206,7 +206,7 @@ class ElasticsearchServiceTest {
 
     @Test
     void ensureIndexExists_throwsOnError() throws Exception {
-        lenient().when(lowLevelClient.performRequest(any())).thenThrow(new IOException("Connection failed"));
+        when(lowLevelClient.performRequest(any())).thenThrow(new IOException("Connection failed"));
 
         assertThatThrownBy(() -> service.ensureIndexExists())
                 .isInstanceOf(AppException.class)
@@ -216,7 +216,7 @@ class ElasticsearchServiceTest {
     @Test
     void indexDocument_indexesSuccessfully() throws Exception {
         Response response = mockResponse(201);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         service.indexDocument("doc-1", "Title", "Author", "Category", new String[] { "tag1" }, "1.0", "Content");
 
@@ -226,7 +226,7 @@ class ElasticsearchServiceTest {
     @Test
     void indexDocument_throwsOnHttpError() throws Exception {
         Response response = mockResponse(400, "Bad Request");
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         assertThatThrownBy(() -> service.indexDocument("doc-1", "Title", "Author", "Category", new String[] { "tag1" },
                 "1.0", "Content"))
@@ -237,7 +237,7 @@ class ElasticsearchServiceTest {
     @Test
     void indexDocument_handlesNullTags() throws Exception {
         Response response = mockResponse(201);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         service.indexDocument("doc-1", "Title", "Author", "Category", null, "1.0", "Content");
 
@@ -246,7 +246,7 @@ class ElasticsearchServiceTest {
 
     @Test
     void indexDocument_throwsOnIOException() throws Exception {
-        lenient().when(lowLevelClient.performRequest(any())).thenThrow(new IOException("IO error"));
+        when(lowLevelClient.performRequest(any())).thenThrow(new IOException("IO error"));
         assertThatThrownBy(() -> service.indexDocument("doc-1", "Title", "Author", "Category", new String[] { "tag1" },
                 "1.0", "Content"))
                 .isInstanceOf(AppException.class)
@@ -259,7 +259,7 @@ class ElasticsearchServiceTest {
                 {"hits":{"total":{"value":0},"hits":[]}}
                 """;
         Response response = mockResponse(json);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         SearchResponse result = service.search("query", 0, 20);
 
@@ -292,7 +292,7 @@ class ElasticsearchServiceTest {
                 }
                 """;
         Response response = mockResponse(json);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         SearchResponse result = service.search("Doc", 0, 20);
 
@@ -308,7 +308,7 @@ class ElasticsearchServiceTest {
                 {"hits":{"total":{"value":50},"hits":[]}}
                 """;
         Response response = mockResponse(json);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         SearchResponse result = service.search("query", 2, 10);
 
@@ -319,7 +319,7 @@ class ElasticsearchServiceTest {
 
     @Test
     void search_throwsOnError() throws Exception {
-        lenient().when(lowLevelClient.performRequest(any())).thenThrow(new IOException("ES down"));
+        when(lowLevelClient.performRequest(any())).thenThrow(new IOException("ES down"));
 
         assertThatThrownBy(() -> service.search("query", 0, 20))
                 .isInstanceOf(AppException.class)
@@ -336,11 +336,8 @@ class ElasticsearchServiceTest {
         hits.putArray("hits");
         root.set("hits", hits);
 
-        Method method = ElasticsearchService.class.getDeclaredMethod("parseSearchResponse", JsonNode.class, int.class,
-                int.class);
-        method.setAccessible(true);
-
-        SearchResponse result = (SearchResponse) method.invoke(service, root, 0, 20);
+        // Call directly now
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
 
         assertThat(result.total()).isEqualTo(42);
     }
@@ -370,11 +367,8 @@ class ElasticsearchServiceTest {
         hits.putArray("hits").add(hit);
         root.set("hits", hits);
 
-        Method method = ElasticsearchService.class.getDeclaredMethod("parseSearchResponse", JsonNode.class, int.class,
-                int.class);
-        method.setAccessible(true);
-
-        SearchResponse result = (SearchResponse) method.invoke(service, root, 0, 20);
+        // Call directly now
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).highlight()).contains("Test <mark>highlight</mark>");
@@ -402,14 +396,38 @@ class ElasticsearchServiceTest {
         hits.putArray("hits").add(hit);
         root.set("hits", hits);
 
-        Method method = ElasticsearchService.class.getDeclaredMethod("parseSearchResponse", JsonNode.class, int.class,
-                int.class);
-        method.setAccessible(true);
-
-        SearchResponse result = (SearchResponse) method.invoke(service, root, 0, 20);
+        // Call directly now
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).highlight()).isEmpty();
+    }
+
+    @Test
+    void parseSearchResponse_extractsTagsFromJsonArray() throws Exception {
+        ObjectNode root = realMapper.createObjectNode();
+        ObjectNode hits = realMapper.createObjectNode();
+        ObjectNode total = realMapper.createObjectNode();
+        total.put("value", 1);
+        hits.set("total", total);
+
+        ObjectNode hit = realMapper.createObjectNode();
+        ObjectNode source = realMapper.createObjectNode();
+        source.put("documentId", "doc-1");
+        source.put("title", "Title");
+        source.put("author", "Author");
+        source.put("category", "Cat");
+        source.put("version", "1.0");
+        source.putArray("tags").add("tag1").add("tag2");
+        hit.set("_source", source);
+
+        hits.putArray("hits").add(hit);
+        root.set("hits", hits);
+
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).metadata().tags()).containsExactly("tag1", "tag2");
     }
 
     @Test
@@ -428,11 +446,8 @@ class ElasticsearchServiceTest {
         hits.putArray("hits").add(hit);
         root.set("hits", hits);
 
-        Method method = ElasticsearchService.class.getDeclaredMethod("parseSearchResponse", JsonNode.class, int.class,
-                int.class);
-        method.setAccessible(true);
-
-        SearchResponse result = (SearchResponse) method.invoke(service, root, 0, 20);
+        // Call directly now
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).documentId()).isEqualTo("doc-1");
@@ -440,7 +455,7 @@ class ElasticsearchServiceTest {
 
     @Test
     void ensureIndexExists_throwsOnHeadError() throws Exception {
-        lenient().when(lowLevelClient.performRequest(any())).thenThrow(new IOException("HEAD failed"));
+        when(lowLevelClient.performRequest(any())).thenThrow(new IOException("HEAD failed"));
         assertThatThrownBy(() -> service.ensureIndexExists())
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("code", "INDEXING_ERROR");
@@ -449,7 +464,7 @@ class ElasticsearchServiceTest {
     @Test
     void search_throwsOnMalformedJson() throws Exception {
         Response response = mockResponse("not json");
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
         assertThatThrownBy(() -> service.search("query", 0, 20))
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("code", "SEARCH_ERROR");
@@ -463,10 +478,8 @@ class ElasticsearchServiceTest {
         hits.put("total", 7); // integer
         hits.putArray("hits");
         root.set("hits", hits);
-        Method method = ElasticsearchService.class.getDeclaredMethod("parseSearchResponse", JsonNode.class, int.class,
-                int.class);
-        method.setAccessible(true);
-        SearchResponse result = (SearchResponse) method.invoke(service, root, 0, 20);
+        // Call directly now
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
         assertThat(result.total()).isEqualTo(7);
     }
 
@@ -477,17 +490,15 @@ class ElasticsearchServiceTest {
         // total missing
         hits.putArray("hits");
         root.set("hits", hits);
-        Method method = ElasticsearchService.class.getDeclaredMethod("parseSearchResponse", JsonNode.class, int.class,
-                int.class);
-        method.setAccessible(true);
-        SearchResponse result = (SearchResponse) method.invoke(service, root, 0, 20);
+        // Call directly now
+        SearchResponse result = service.parseSearchResponse(root, 0, 20);
         assertThat(result.total()).isZero();
     }
 
     @Test
     void indexDocument_withEmptyTagsArray() throws Exception {
         Response response = mockResponse(201);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
         service.indexDocument("doc-1", "Title", "Author", "Category", new String[] {}, "1.0", "Content");
         verify(lowLevelClient).performRequest(any());
     }
@@ -496,7 +507,7 @@ class ElasticsearchServiceTest {
     void ensureIndexExists_whenPutFails_throws() throws Exception {
         Response headResponse = mockResponse(404);
         Response putResponse = mockResponse(500, "Internal Server Error");
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(headResponse, putResponse);
+        when(lowLevelClient.performRequest(any())).thenReturn(headResponse, putResponse);
         assertThatThrownBy(() -> service.ensureIndexExists())
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("code", "INDEXING_ERROR");
@@ -549,7 +560,7 @@ class ElasticsearchServiceTest {
                         {"hits":{"total":{"value":1},"hits":[{"_source":{"documentId":"doc-1","title":"Test","author":"A","category":"C","tags":[],"version":"1.0","content":"content"},"highlight":{}}]}}
                         """);
 
-        lenient().when(lowLevelClient.performRequest(any()))
+        when(lowLevelClient.performRequest(any()))
                 .thenReturn(failResponse, failResponse, successResponse);
 
         // This should retry and eventually succeed
@@ -563,7 +574,7 @@ class ElasticsearchServiceTest {
         Response failResponse = mockResponse(500, "Internal Server Error");
         Response successResponse = mockResponse(201);
 
-        lenient().when(lowLevelClient.performRequest(any()))
+        when(lowLevelClient.performRequest(any()))
                 .thenReturn(failResponse, failResponse, successResponse);
 
         service.indexDocument("doc-1", "Title", "Author", "Category", new String[] { "tag1" }, "1.0", "Content");
@@ -573,7 +584,7 @@ class ElasticsearchServiceTest {
     @Test
     void search_doesNotRetryOnClientError() throws Exception {
         Response clientErrorResponse = mockResponse(400, "Bad Request");
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(clientErrorResponse);
+        when(lowLevelClient.performRequest(any())).thenReturn(clientErrorResponse);
 
         assertThatThrownBy(() -> service.search("query", 0, 20))
                 .isInstanceOf(AppException.class)
@@ -654,22 +665,18 @@ class ElasticsearchServiceTest {
 
     @Test
     void ensureIndexExistsWithRetry_successOnSecondAttempt() throws Exception {
-        Method method = ElasticsearchService.class.getDeclaredMethod("ensureIndexExistsWithRetry");
-        method.setAccessible(true);
-
         // Mock indexExists to return false first, then true
         Response headResponse1 = mockResponse(404); // Not found
         Response headResponse2 = mockResponse(200); // Found
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(headResponse1, headResponse2);
 
         // Also mock createIndex to succeed
         Response putResponse = mockResponse(200);
         // We need the third call to be the PUT request
-        doReturn(headResponse1, headResponse2, putResponse).when(lowLevelClient).performRequest(any());
+        when(lowLevelClient.performRequest(any())).thenReturn(headResponse1, headResponse2, putResponse);
 
-        // This should not throw an exception
+        // This should not throw an exception - call directly now
         assertThatCode(() -> {
-            method.invoke(service);
+            service.ensureIndexExistsWithRetry();
         }).doesNotThrowAnyException();
 
         // Verify performRequest was called multiple times
@@ -678,20 +685,13 @@ class ElasticsearchServiceTest {
 
     @Test
     void ensureIndexExistsWithRetry_maxRetriesExhausted_throwsException() throws Exception {
-        Method method = ElasticsearchService.class.getDeclaredMethod("ensureIndexExistsWithRetry");
-        method.setAccessible(true);
-
         // Mock indexExists to always return false (index doesn't exist)
-        Response headResponse = mockResponse(404);
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(headResponse);
-
         // Also mock createIndex to always fail with IOException
         doThrow(new IOException("ES down")).when(lowLevelClient).performRequest(any());
 
-        // This should throw an exception after max retries
-        assertThatThrownBy(() -> method.invoke(service))
-            .isInstanceOf(java.lang.reflect.InvocationTargetException.class)
-            .hasCauseInstanceOf(IOException.class);
+        // This should throw an exception after max retries - call directly now
+        assertThatThrownBy(() -> service.ensureIndexExistsWithRetry())
+            .isInstanceOf(IOException.class);
 
         // Verify it tried maxRetryAttempts times (3)
         verify(lowLevelClient, times(3)).performRequest(any());
@@ -928,7 +928,7 @@ class ElasticsearchServiceTest {
         when(response.getStatusLine()).thenReturn(statusLine);
         when(response.getEntity()).thenReturn(null);
 
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         // This should throw an AppException when trying to parse null entity
         assertThatThrownBy(() -> service.search("test", 0, 10))
@@ -950,7 +950,7 @@ class ElasticsearchServiceTest {
         entity.setContentLength(0);
         when(response.getEntity()).thenReturn(entity);
 
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         SearchResponse result = service.search("test", 0, 10);
 
@@ -966,7 +966,7 @@ class ElasticsearchServiceTest {
         when(statusLine.getStatusCode()).thenReturn(201); // Created
         when(response.getStatusLine()).thenReturn(statusLine);
 
-        lenient().when(lowLevelClient.performRequest(any())).thenReturn(response);
+        when(lowLevelClient.performRequest(any())).thenReturn(response);
 
         // This should not throw - indexDocument doesn't read the response entity for success case
         // It only checks the status code

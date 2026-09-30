@@ -25,8 +25,8 @@ Para maximizar la calidad del software, se utilizó un enfoque de **Multi-LLM**,
 
 | Área / Componente | Modelo IA Utilizado | Propósito |
 |------------------|--------------------|-----------|
-| **Backend (Java)** | **Claude 3.5 Sonnet** | Diseño de arquitectura, implementación de servicios Quarkus y lógica de negocio |
-| **Frontend (TS)** | **Gemini 1.5 Pro** | Componentes Angular 17+, reactividad con RxJS y estilos CSS |
+| **Backend (Java)** | **Claude 5.5 Sonnet** | Diseño de arquitectura, implementación de servicios Quarkus y lógica de negocio |
+| **Frontend (TS)** | **Gemini 3.1 Pro** | Componentes Angular 17+, reactividad con RxJS y estilos CSS |
 | **Config & Tests** | **Gemma 4 / Nemotron Ultra** | Configuración de infraestructura, Docker, scripts de test y debugging de entorno |
 | **Documentación** | **Gemma 4** | Redacción técnica y mantenimiento de docs |
 

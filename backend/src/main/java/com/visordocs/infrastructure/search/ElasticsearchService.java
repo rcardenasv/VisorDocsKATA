@@ -132,7 +132,7 @@ public class ElasticsearchService {
         }
     }
 
-    private void ensureIndexExistsWithRetry() throws IOException {
+    void ensureIndexExistsWithRetry() throws IOException {
         int attempts = 0;
         IOException lastException = null;
 
@@ -174,7 +174,7 @@ public class ElasticsearchService {
         return response.getStatusLine().getStatusCode() == 200;
     }
 
-    private void createIndex() throws IOException {
+    void createIndex() throws IOException {
         ObjectNode mapping = objectMapper.createObjectNode();
         ObjectNode properties = mapping.putObject("properties");
 
@@ -315,7 +315,7 @@ public class ElasticsearchService {
         });
     }
 
-    private <T> T executeWithRetry(Supplier<T> operation) {
+    <T> T executeWithRetry(Supplier<T> operation) {
         int attempts = 0;
         Exception lastException = null;
 
@@ -364,7 +364,7 @@ public class ElasticsearchService {
         }
     }
 
-    private SearchResponse parseSearchResponse(JsonNode responseJson, int page, int pageSize) {
+    SearchResponse parseSearchResponse(JsonNode responseJson, int page, int pageSize) {
         List<SearchResponse.SearchResultItem> items = new ArrayList<>();
 
         JsonNode hits = responseJson.path("hits");
@@ -396,12 +396,16 @@ public class ElasticsearchService {
             String category = source.path("category").asText();
             String version = source.path("version").asText();
 
-            Object tagsObj = source.path("tags");
+            JsonNode tagsNode = source.path("tags");
             String[] tagsArr;
-            if (tagsObj instanceof List<?> tagsList) {
-                tagsArr = tagsList.stream()
-                        .map(Object::toString)
-                        .toArray(String[]::new);
+            if (tagsNode.isArray()) {
+                List<String> tagsList = new ArrayList<>();
+                tagsNode.forEach(tagNode -> {
+                    if (!tagNode.isNull()) {
+                        tagsList.add(tagNode.asText());
+                    }
+                });
+                tagsArr = tagsList.toArray(String[]::new);
             } else {
                 tagsArr = new String[0];
             }
