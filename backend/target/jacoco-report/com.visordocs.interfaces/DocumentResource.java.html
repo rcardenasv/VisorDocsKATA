@@ -125,9 +125,40 @@ import java.util.List;
         );
     }
 
+    @GET
+    @jakarta.ws.rs.Path(&quot;/{id}/content&quot;)
+    public Response getDocumentContent(@PathParam(&quot;id&quot;) String id) {
+<span class="fc" id="L131">        Document doc = documentRepository.findById(id);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (doc == null) {</span>
+<span class="fc" id="L133">            throw AppException.documentNotFound(id);</span>
+        }
+
+<span class="fc" id="L136">        Path filePath = Path.of(uploadDir).resolve(doc.id);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        if (!Files.exists(filePath)) {</span>
+<span class="fc" id="L138">            throw AppException.internalError(&quot;File not found on disk&quot;, new IllegalStateException(&quot;File missing: &quot; + filePath));</span>
+        }
+
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">        String contentType = switch (doc.fileType.toLowerCase()) {</span>
+<span class="fc" id="L142">            case &quot;pdf&quot; -&gt; &quot;application/pdf&quot;;</span>
+<span class="fc" id="L143">            case &quot;md&quot; -&gt; &quot;text/markdown&quot;;</span>
+<span class="fc" id="L144">            case &quot;txt&quot; -&gt; &quot;text/plain&quot;;</span>
+<span class="nc" id="L145">            default -&gt; &quot;application/octet-stream&quot;;</span>
+        };
+
+        try {
+<span class="fc" id="L149">            byte[] fileContent = Files.readAllBytes(filePath);</span>
+<span class="fc" id="L150">            return Response.ok(fileContent)</span>
+<span class="fc" id="L151">                    .header(&quot;Content-Type&quot;, contentType)</span>
+<span class="fc" id="L152">                    .header(&quot;Content-Disposition&quot;, &quot;inline; filename=\&quot;&quot; + doc.originalFileName + &quot;\&quot;&quot;)</span>
+<span class="fc" id="L153">                    .build();</span>
+<span class="nc" id="L154">        } catch (IOException e) {</span>
+<span class="nc" id="L155">            throw AppException.internalError(&quot;Failed to read file&quot;, e);</span>
+        }
+    }
+
     private String getExtension(String fileName) {
-<span class="pc bpc" id="L129" title="2 of 4 branches missed.">        if (fileName == null || !fileName.contains(&quot;.&quot;)) return &quot;&quot;;</span>
-<span class="fc" id="L130">        return fileName.substring(fileName.lastIndexOf('.') + 1);</span>
+<span class="pc bpc" id="L160" title="2 of 4 branches missed.">        if (fileName == null || !fileName.contains(&quot;.&quot;)) return &quot;&quot;;</span>
+<span class="fc" id="L161">        return fileName.substring(fileName.lastIndexOf('.') + 1);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

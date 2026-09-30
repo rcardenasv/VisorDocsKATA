@@ -16,10 +16,10 @@ public class AppException extends RuntimeException {
 <span class="fc" id="L16">    }</span>
 
     public AppException(String code, String message, int httpStatus, Throwable cause) {
-<span class="nc" id="L19">        super(message, cause);</span>
-<span class="nc" id="L20">        this.code = code;</span>
-<span class="nc" id="L21">        this.httpStatus = httpStatus;</span>
-<span class="nc" id="L22">    }</span>
+<span class="fc" id="L19">        super(message, cause);</span>
+<span class="fc" id="L20">        this.code = code;</span>
+<span class="fc" id="L21">        this.httpStatus = httpStatus;</span>
+<span class="fc" id="L22">    }</span>
 
     public String getCode() {
 <span class="fc" id="L25">        return code;</span>
@@ -65,9 +65,19 @@ public class AppException extends RuntimeException {
 <span class="nc" id="L65">                &quot;Search query failed: &quot; + detail, 500, cause);</span>
     }
 
+    public static AppException searchError(String detail, int httpStatus) {
+<span class="nc" id="L69">        return new AppException(&quot;SEARCH_ERROR&quot;,</span>
+<span class="nc" id="L70">                &quot;Search query failed: &quot; + detail, httpStatus);</span>
+    }
+
+    public static AppException searchError(String detail, int httpStatus, Throwable cause) {
+<span class="nc" id="L74">        return new AppException(&quot;SEARCH_ERROR&quot;,</span>
+<span class="nc" id="L75">                &quot;Search query failed: &quot; + detail, httpStatus, cause);</span>
+    }
+
     public static AppException internalError(String detail, Throwable cause) {
-<span class="nc" id="L69">        return new AppException(&quot;INTERNAL_SERVER_ERROR&quot;,</span>
-<span class="nc" id="L70">                detail, 500, cause);</span>
+<span class="fc" id="L79">        return new AppException(&quot;INTERNAL_SERVER_ERROR&quot;,</span>
+<span class="fc" id="L80">                detail, 500, cause);</span>
     }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

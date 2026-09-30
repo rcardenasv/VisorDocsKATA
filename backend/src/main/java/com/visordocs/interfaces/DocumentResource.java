@@ -125,6 +125,37 @@ public class DocumentResource {
         );
     }
 
+    @GET
+    @jakarta.ws.rs.Path("/{id}/content")
+    public Response getDocumentContent(@PathParam("id") String id) {
+        Document doc = documentRepository.findById(id);
+        if (doc == null) {
+            throw AppException.documentNotFound(id);
+        }
+
+        Path filePath = Path.of(uploadDir).resolve(doc.id);
+        if (!Files.exists(filePath)) {
+            throw AppException.internalError("File not found on disk", new IllegalStateException("File missing: " + filePath));
+        }
+
+        String contentType = switch (doc.fileType.toLowerCase()) {
+            case "pdf" -> "application/pdf";
+            case "md" -> "text/markdown";
+            case "txt" -> "text/plain";
+            default -> "application/octet-stream";
+        };
+
+        try {
+            byte[] fileContent = Files.readAllBytes(filePath);
+            return Response.ok(fileContent)
+                    .header("Content-Type", contentType)
+                    .header("Content-Disposition", "inline; filename=\"" + doc.originalFileName + "\"")
+                    .build();
+        } catch (IOException e) {
+            throw AppException.internalError("Failed to read file", e);
+        }
+    }
+
     private String getExtension(String fileName) {
         if (fileName == null || !fileName.contains(".")) return "";
         return fileName.substring(fileName.lastIndexOf('.') + 1);

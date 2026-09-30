@@ -3,7 +3,7 @@ visordocs-backend,com.visordocs.infrastructure.persistence,DocumentRepository,0,
 visordocs-backend,com.visordocs.infrastructure.sse,SseService,23,10,0,0,4,3,3,2,3,2
 visordocs-backend,com.visordocs.interfaces,SseResource,8,0,0,0,2,0,2,0,2,0
 visordocs-backend,com.visordocs.interfaces,SearchResource,0,23,0,4,0,4,0,4,0,2
-visordocs-backend,com.visordocs.interfaces,DocumentResource,30,208,14,20,3,47,14,7,0,4
+visordocs-backend,com.visordocs.interfaces,DocumentResource,36,269,15,27,6,62,15,12,0,5
 visordocs-backend,com.visordocs.interfaces,GlobalExceptionMapper,0,31,0,0,0,8,0,3,0,3
 visordocs-backend,com.visordocs.interfaces.dto,SearchResponse.SearchMetadata,0,15,0,0,0,1,0,1,0,1
 visordocs-backend,com.visordocs.interfaces.dto,ErrorResponse,0,16,0,0,0,2,0,2,0,2
@@ -15,8 +15,8 @@ visordocs-backend,com.visordocs.interfaces.dto,SearchResponse,0,15,0,0,0,1,0,1,0
 visordocs-backend,com.visordocs.interfaces.dto,DocumentStatusEvent,26,0,0,0,3,0,3,0,3,0
 visordocs-backend,com.visordocs.interfaces.dto,SearchResponse.SearchResultItem,0,15,0,0,0,1,0,1,0,1
 visordocs-backend,com.visordocs.application,DocumentProcessingJob,98,24,3,1,19,7,2,3,0,3
-visordocs-backend,com.visordocs.infrastructure.search,ElasticsearchService,570,141,26,12,114,34,25,10,8,8
-visordocs-backend,com.visordocs.domain,DocumentStatus,0,34,0,0,0,4,0,1,0,1
-visordocs-backend,com.visordocs.domain,AppException,54,39,0,0,14,11,6,6,6,6
+visordocs-backend,com.visordocs.infrastructure.search,ElasticsearchService,828,218,53,13,185,65,43,16,12,14
+visordocs-backend,com.visordocs.domain,DocumentStatus,0,21,0,0,0,4,0,1,0,1
+visordocs-backend,com.visordocs.domain,AppException,52,58,0,0,12,17,6,8,6,8
 visordocs-backend,com.visordocs.domain,Document,11,6,0,0,5,2,2,1,2,1
-visordocs-backend,com.visordocs.infrastructure.extraction,TextExtractorService,115,7,8,0,34,2,9,2,4,2
+visordocs-backend,com.visordocs.infrastructure.extraction,TextExtractorService,149,26,16,0,42,8,12,2,4,2

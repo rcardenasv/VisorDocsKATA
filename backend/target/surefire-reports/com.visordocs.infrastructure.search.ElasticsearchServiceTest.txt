@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.visordocs.infrastructure.search.ElasticsearchServiceTest
 -------------------------------------------------------------------------------
-Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.111 s -- in com.visordocs.infrastructure.search.ElasticsearchServiceTest
+Tests run: 35, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.106 s -- in com.visordocs.infrastructure.search.ElasticsearchServiceTest

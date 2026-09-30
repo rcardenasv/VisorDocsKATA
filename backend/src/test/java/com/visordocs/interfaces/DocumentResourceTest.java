@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -60,7 +59,8 @@ class DocumentResourceTest {
         FileUpload file = Mockito.mock(FileUpload.class);
         lenient().when(file.fileName()).thenReturn(name);
         lenient().when(file.size()).thenReturn(size);
-        if (path != null) lenient().when(file.filePath()).thenReturn(path);
+        if (path != null)
+            lenient().when(file.filePath()).thenReturn(path);
         return file;
     }
 
@@ -216,7 +216,7 @@ class DocumentResourceTest {
         doc.title = "Test Doc";
         doc.author = "Test Author";
         doc.category = "Test Cat";
-        doc.tags = new String[]{"tag1", "tag2"};
+        doc.tags = new String[] { "tag1", "tag2" };
         doc.version = "2.0";
         doc.originalFileName = "orig.txt";
         doc.fileType = "txt";
@@ -252,5 +252,112 @@ class DocumentResourceTest {
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("code", "DOCUMENT_NOT_FOUND")
                 .hasMessageContaining("missing");
+    }
+
+    @Test
+    void getDocumentContent_found_returnsResponseWithFileContent() throws java.io.IOException {
+        setUpResource();
+        Path filePath = tempDir.resolve("doc-789");
+        Files.writeString(filePath, "PDF content bytes", StandardCharsets.UTF_8);
+
+        Document doc = new Document();
+        doc.id = "doc-789";
+        doc.originalFileName = "document.pdf";
+        doc.fileType = "pdf";
+
+        when(documentRepository.findById("doc-789")).thenReturn(doc);
+
+        Response response = resource.getDocumentContent("doc-789");
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeaderString("Content-Type")).isEqualTo("application/pdf");
+        assertThat(response.getHeaderString("Content-Disposition")).contains("inline");
+        assertThat(response.getHeaderString("Content-Disposition")).contains("document.pdf");
+        assertThat(response.getEntity()).isEqualTo("PDF content bytes".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void getDocumentContent_txt_returnsTextPlain() throws java.io.IOException {
+        setUpResource();
+        Path filePath = tempDir.resolve("doc-txt");
+        Files.writeString(filePath, "Plain text", StandardCharsets.UTF_8);
+
+        Document doc = new Document();
+        doc.id = "doc-txt";
+        doc.originalFileName = "readme.txt";
+        doc.fileType = "txt";
+
+        when(documentRepository.findById("doc-txt")).thenReturn(doc);
+
+        Response response = resource.getDocumentContent("doc-txt");
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeaderString("Content-Type")).isEqualTo("text/plain");
+        assertThat(response.getEntity()).isEqualTo("Plain text".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void getDocumentContent_md_returnsTextMarkdown() throws java.io.IOException {
+        setUpResource();
+        Path filePath = tempDir.resolve("doc-md");
+        Files.writeString(filePath, "# Markdown", StandardCharsets.UTF_8);
+
+        Document doc = new Document();
+        doc.id = "doc-md";
+        doc.originalFileName = "guide.md";
+        doc.fileType = "md";
+
+        when(documentRepository.findById("doc-md")).thenReturn(doc);
+
+        Response response = resource.getDocumentContent("doc-md");
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeaderString("Content-Type")).isEqualTo("text/markdown");
+        assertThat(response.getEntity()).isEqualTo("# Markdown".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void getDocumentContent_unknownType_returnsOctetStream() throws java.io.IOException {
+        setUpResource();
+        Path filePath = tempDir.resolve("doc-xyz");
+        Files.writeString(filePath, "data", StandardCharsets.UTF_8);
+
+        Document doc = new Document();
+        doc.id = "doc-xyz";
+        doc.originalFileName = "file.xyz";
+        doc.fileType = "xyz";
+
+        when(documentRepository.findById("doc-xyz")).thenReturn(doc);
+
+        Response response = resource.getDocumentContent("doc-xyz");
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeaderString("Content-Type")).isEqualTo("application/octet-stream");
+    }
+
+    @Test
+    void getDocumentContent_notFound_throwsDocumentNotFound() {
+        setUpResource();
+        when(documentRepository.findById("missing")).thenReturn(null);
+
+        assertThatThrownBy(() -> resource.getDocumentContent("missing"))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "DOCUMENT_NOT_FOUND")
+                .hasMessageContaining("missing");
+    }
+
+    @Test
+    void getDocumentContent_fileMissingOnDisk_throwsInternalError() {
+        setUpResource();
+        Document doc = new Document();
+        doc.id = "doc-no-file";
+        doc.fileType = "pdf";
+
+        when(documentRepository.findById("doc-no-file")).thenReturn(doc);
+
+        assertThatThrownBy(() -> resource.getDocumentContent("doc-no-file"))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "INTERNAL_SERVER_ERROR")
+                .hasMessageContaining("File not found on disk");
     }
 }

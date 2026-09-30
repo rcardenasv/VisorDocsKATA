@@ -172,15 +172,15 @@ class TextExtractorServiceTest {
         String markdown = """
                 # Main Title
                 Intro paragraph with `inline code`.
-                
+
                 - Item 1
                 - Item 2
-                
+
                 > Blockquote text
                 > More quote
-                
+
                 [Link](https://example.com)
-                
+
                 ```code block```
                 End.
                 """;
@@ -191,7 +191,8 @@ class TextExtractorServiceTest {
 
         assertThat(result).contains("Main Title").contains("Intro paragraph").contains("Item 1").contains("Item 2")
                 .contains("Blockquote text").contains("More quote").contains("Link").contains("End");
-        assertThat(result).doesNotContain("# ").doesNotContain("- ").doesNotContain("> ").doesNotContain("`inline code`")
+        assertThat(result).doesNotContain("# ").doesNotContain("- ").doesNotContain("> ")
+                .doesNotContain("`inline code`")
                 .doesNotContain("```code block```").doesNotContain("https://example.com");
     }
 
@@ -318,13 +319,86 @@ class TextExtractorServiceTest {
         assertThat(result).isEmpty();
     }
 
+    // NEW TESTS FOR IMPROVED COVERAGE
+
+    @Test
+    void extractTxt_withMalformedUtf8_fallbackToIso88591(@TempDir Path tempDir) throws IOException {
+        // Create a file that is invalid UTF-8 but valid ISO-8859-1
+        Path file = tempDir.resolve("bad.txt");
+        byte[] bytes = "Café".getBytes(StandardCharsets.ISO_8859_1); // é is 0xE9 in ISO-8859-1, invalid UTF-8 alone
+        Files.write(file, bytes);
+
+        String result = TextExtractorService.extractTxt(file); // direct call to package-private method
+
+        assertThat(result).contains("Café");
+    }
+
+    @Test
+    void extractTxt_nullByteRemoved(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("null.txt");
+        Files.writeString(file, "Start\u0000End", StandardCharsets.UTF_8);
+
+        String result = TextExtractorService.extractTxt(file);
+
+        assertThat(result).isEqualTo("StartEnd");
+    }
+
+    @Test
+    void extractTxt_ioException_throwsTextExtractionError(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("isdir.txt");
+        Files.createDirectory(file); // directory causes IOException when reading as file
+        assertThatThrownBy(() -> TextExtractorService.extractTxt(file))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "TEXT_EXTRACTION_ERROR")
+                .hasMessageContaining("Failed to read TXT file");
+    }
+
+    @Test
+    void extractPdf_ioException_throwsTextExtractionError(@TempDir Path tempDir) throws Exception {
+        // Mock PDDocument.load to throw IOException
+        // We'll use PowerMock? Too heavy. Instead we trust existing tests.
+        // We'll add a test that calls extractPdf with a path that causes Loader.loadPDF
+        // to throw IOException by making it a directory.
+        Path file = tempDir.resolve("isdir.pdf");
+        Files.createDirectory(file); // make it a directory, Loader.loadPDF will throw IOException
+        assertThatThrownBy(() -> TextExtractorService.extractPdf(file))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "TEXT_EXTRACTION_ERROR");
+    }
+
+    @Test
+    void extractMarkdown_ioException_throwsTextExtractionError(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("isdir.md");
+        Files.createDirectory(file);
+        assertThatThrownBy(() -> TextExtractorService.extractMarkdown(file))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "TEXT_EXTRACTION_ERROR");
+    }
+
+    @Test
+    void extractPdf_nullText_throwsTextExtractionError(@TempDir Path tempDir) throws IOException {
+        // Create a PDF with no text (empty page)
+        Path file = tempDir.resolve("emptytext.pdf");
+        try (var document = new org.apache.pdfbox.pdmodel.PDDocument()) {
+            var page = new org.apache.pdfbox.pdmodel.PDPage();
+            document.addPage(page);
+            // No text added
+            document.save(file.toFile());
+        }
+        assertThatThrownBy(() -> extractor.extract(file, "pdf"))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("code", "TEXT_EXTRACTION_ERROR")
+                .hasMessageContaining("PDF contains no extractable text");
+    }
+
     private void createSimplePdf(Path file, String text) throws IOException {
         try (var document = new org.apache.pdfbox.pdmodel.PDDocument()) {
             var page = new org.apache.pdfbox.pdmodel.PDPage();
             document.addPage(page);
             try (var cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(document, page)) {
                 cs.beginText();
-                cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+                cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(
+                        org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
                 cs.newLineAtOffset(50, 700);
                 cs.showText(text);
                 cs.endText();
@@ -348,7 +422,8 @@ class TextExtractorServiceTest {
                 document.addPage(page);
                 try (var cs = new org.apache.pdfbox.pdmodel.PDPageContentStream(document, page)) {
                     cs.beginText();
-                    cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
+                    cs.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(
+                            org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA), 12);
                     cs.newLineAtOffset(50, 700);
                     cs.showText(text);
                     cs.endText();

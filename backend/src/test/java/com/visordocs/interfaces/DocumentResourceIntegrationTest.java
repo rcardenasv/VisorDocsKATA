@@ -8,9 +8,7 @@ import com.visordocs.interfaces.dto.DocumentDetailResponse;
 import com.visordocs.interfaces.dto.UploadResponse;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.InjectMock;
-import jakarta.inject.Inject;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
@@ -23,7 +21,6 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -81,7 +78,7 @@ class DocumentResourceIntegrationTest {
         doc.title = "Test Doc";
         doc.author = "Test Author";
         doc.category = "Test Cat";
-        doc.tags = new String[]{"tag1"};
+        doc.tags = new String[] { "tag1" };
         doc.version = "2.0";
         doc.originalFileName = "orig.txt";
         doc.fileType = "txt";
@@ -150,5 +147,117 @@ class DocumentResourceIntegrationTest {
                 .statusCode(400)
                 .body("error.code", org.hamcrest.CoreMatchers.equalTo("UNSUPPORTED_FILE_TYPE"))
                 .body("error.correlationId", org.hamcrest.CoreMatchers.notNullValue());
+    }
+
+    @Test
+    void getDocumentContent_found_returnsFileContent() throws Exception {
+        Document doc = new Document();
+        doc.id = "doc-456";
+        doc.title = "PDF Doc";
+        doc.author = "PDF Author";
+        doc.category = "PDF Cat";
+        doc.tags = new String[] { "pdf" };
+        doc.version = "1.0";
+        doc.originalFileName = "test.pdf";
+        doc.fileType = "pdf";
+        doc.content = "extracted text";
+        doc.status = DocumentStatus.INDEXED;
+
+        Path uploadDir = Path.of("test-uploads");
+        Files.createDirectories(uploadDir);
+        Path filePath = uploadDir.resolve(doc.id);
+        Files.writeString(filePath, "%PDF-1.4 fake pdf content", StandardCharsets.UTF_8);
+
+        when(documentRepository.findById("doc-456")).thenReturn(doc);
+
+        given()
+                .get("/api/documents/doc-456/content")
+                .then()
+                .statusCode(200)
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", org.hamcrest.CoreMatchers.containsString("inline"))
+                .header("Content-Disposition", org.hamcrest.CoreMatchers.containsString("test.pdf"))
+                .body(org.hamcrest.CoreMatchers.containsString("%PDF-1.4 fake pdf content"));
+
+        Files.deleteIfExists(filePath);
+    }
+
+    @Test
+    void getDocumentContent_txt_returnsTextPlain() throws Exception {
+        Document doc = new Document();
+        doc.id = "doc-txt";
+        doc.originalFileName = "readme.txt";
+        doc.fileType = "txt";
+
+        Path uploadDir = Path.of("test-uploads");
+        Files.createDirectories(uploadDir);
+        Path filePath = uploadDir.resolve(doc.id);
+        Files.writeString(filePath, "Plain text content", StandardCharsets.UTF_8);
+
+        when(documentRepository.findById("doc-txt")).thenReturn(doc);
+
+        given()
+                .get("/api/documents/doc-txt/content")
+                .then()
+                .statusCode(200)
+                .header("Content-Type", "text/plain")
+                .body(org.hamcrest.CoreMatchers.equalTo("Plain text content"));
+
+        Files.deleteIfExists(filePath);
+    }
+
+    @Test
+    void getDocumentContent_md_returnsTextMarkdown() throws Exception {
+        Document doc = new Document();
+        doc.id = "doc-md";
+        doc.originalFileName = "guide.md";
+        doc.fileType = "md";
+
+        Path uploadDir = Path.of("test-uploads");
+        Files.createDirectories(uploadDir);
+        Path filePath = uploadDir.resolve(doc.id);
+        Files.writeString(filePath, "# Header\nContent", StandardCharsets.UTF_8);
+
+        when(documentRepository.findById("doc-md")).thenReturn(doc);
+
+        given()
+                .get("/api/documents/doc-md/content")
+                .then()
+                .statusCode(200)
+                .header("Content-Type", "text/markdown")
+                .body(org.hamcrest.CoreMatchers.equalTo("# Header\nContent"));
+
+        Files.deleteIfExists(filePath);
+    }
+
+    @Test
+    void getDocumentContent_notFound_returns404() {
+        when(documentRepository.findById("missing")).thenReturn(null);
+
+        given()
+                .accept(MediaType.APPLICATION_JSON)
+                .get("/api/documents/missing/content")
+                .then()
+                .statusCode(404)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("error.code", org.hamcrest.CoreMatchers.equalTo("DOCUMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void getDocumentContent_fileMissingOnDisk_returns500() {
+        Document doc = new Document();
+        doc.id = "doc-no-file";
+        doc.fileType = "pdf";
+
+        when(documentRepository.findById("doc-no-file")).thenReturn(doc);
+
+        given()
+                .accept(MediaType.APPLICATION_JSON)
+                .get("/api/documents/doc-no-file/content")
+                .then()
+                .statusCode(500)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("error.code", org.hamcrest.CoreMatchers.equalTo("INTERNAL_SERVER_ERROR"))
+                .body("error.message", org.hamcrest.CoreMatchers.containsString("File not found on disk"));
     }
 }

@@ -45,9 +45,9 @@ import java.time.Instant;
     @Column(columnDefinition = &quot;text&quot;)
     public String content; // extracted text content
 
-    @Column(nullable = false)
+<span class="fc" id="L48">    @Column(nullable = false)</span>
     @Enumerated(EnumType.STRING)
-<span class="fc" id="L50">    public DocumentStatus status = DocumentStatus.PROCESSING;</span>
+    public DocumentStatus status = DocumentStatus.PROCESSING;
 
     @Column(name = &quot;error_message&quot;)
     public String errorMessage;
